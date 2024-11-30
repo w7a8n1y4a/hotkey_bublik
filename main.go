@@ -21,7 +21,6 @@ import (
 //go:embed assets/icons/64.png
 var iconData []byte
 
-
 func main() {
 
     systray.Run(onReady, onExit)
@@ -71,7 +70,7 @@ func loadIcon(data []byte) ([]byte, error) {
 }
 
 func onReady() {
-    icon, err := loadIcon(iconData)  // Замените на путь к вашему PNG-файлу
+    icon, err := loadIcon(iconData)
     if err != nil {
         log.Fatal("Ошибка загрузки иконки:", err)
     }
