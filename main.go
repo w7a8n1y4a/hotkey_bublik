@@ -22,25 +22,30 @@ import (
 var iconData []byte
 
 func main() {
+    cfg := config.GetConfig()
+    
+    fmt.Println(cfg)
 
     systray.Run(onReady, onExit)
-
-	config.ScreenWidth, config.ScreenHeight = ebiten.ScreenSizeInFullscreen()
-	config.PickerCenterX, config.PickerCenterY = config.ScreenWidth/2, config.ScreenHeight/2
 
     data, err := queries.GetUnitsByNodesQuery()
     fmt.Println(data, err)
 
-	   // Вывод результата
-	fmt.Printf("Общее количество: %d\n", data.Count)
-	for _, unit := range data.Units {
-		fmt.Printf("UUID: %s, Name: %s, Create Date: %s\n", unit.UUID, unit.Name, unit.CreateDatetime)
-		for _, node := range unit.UnitNodes {
-			fmt.Printf("\tNode UUID: %s, Type: %s, Topic: %s\n", node.UUID, node.Type, node.TopicName)
-		}
-	}
+	// // Вывод результата
+	// fmt.Printf("Общее количество: %d\n", data.Count)
+	// for _, unit := range data.Units {
+	// 	fmt.Printf("UUID: %s, Name: %s, Create Date: %s\n", unit.UUID, unit.Name, unit.CreateDatetime)
+	// 	for _, node := range unit.UnitNodes {
+	// 		fmt.Printf("\tNode UUID: %s, Type: %s, Topic: %s\n", node.UUID, node.Type, node.TopicName)
+	// 	}
+	// }
+    
+    config.UpdateConfig(func(cfg *config.Config) {
+        cfg.BlurredBackground = graphics.BlurScreenshot()
+        cfg.NumSegments = data.Count
+    })
+    
 
-    config.BlurredBackground = graphics.BlurScreenshot()
 
     ebiten.SetFullscreen(true)
     ebiten.SetWindowTitle("Picker")

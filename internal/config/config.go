@@ -1,13 +1,105 @@
 package config
 
-import "github.com/hajimehoshi/ebiten/v2"
+import (
+	"encoding/json"
+	"errors"
+	"os"
 
-var (
-	ScreenWidth, ScreenHeight int
-	PickerCenterX, PickerCenterY int
-	RadiusInner, RadiusOuter      = 150, 200
-	SelectedSegment               = -1
-	NumSegments                   = 12
-	BlurredBackground             *ebiten.Image
+	"github.com/hajimehoshi/ebiten/v2"
 )
+
+// UnifiedConfig объединяет переменные конфигурации и приложения
+type Config struct {
+	// Переменные из env.json
+	PEPEUNIT_URL        string `json:"PEPEUNIT_URL"`
+	HTTP_TYPE           string `json:"HTTP_TYPE"`
+	MQTT_URL            string `json:"MQTT_URL"`
+	PEPEUNIT_TOKEN      string `json:"PEPEUNIT_TOKEN"`
+	SYNC_ENCRYPT_KEY    string `json:"SYNC_ENCRYPT_KEY"`
+	SECRET_KEY          string `json:"SECRET_KEY"`
+	PING_INTERVAL       int    `json:"PING_INTERVAL"`
+	STATE_SEND_INTERVAL int    `json:"STATE_SEND_INTERVAL"`
+
+	// Внутренние переменные приложения
+	ScreenWidth       int            `json:"-"`
+	ScreenHeight      int            `json:"-"`
+	PickerCenterX     int            `json:"-"`
+	PickerCenterY     int            `json:"-"`
+	RadiusInner       int            `json:"-"`
+	RadiusOuter       int            `json:"-"`
+	SelectedSegment   int            `json:"-"`
+	NumSegments       int            `json:"-"`
+	BlurredBackground *ebiten.Image  `json:"-"`
+}
+
+// Глобальная переменная для объединённой конфигурации
+var config Config
+
+// Инициализация пакета
+func init() {
+	// Установка начальных значений для переменных приложения
+	config = Config{
+		RadiusInner:       150,
+		RadiusOuter:       200,
+		SelectedSegment:   -1,
+	}
+
+    config.ScreenWidth, config.ScreenHeight = ebiten.Monitor().Size()
+	config.PickerCenterX, config.PickerCenterY = config.ScreenWidth/2, config.ScreenHeight/2
+ 
+
+	// Загрузка конфигурации из env.json
+	if err := loadConfigFromFile("env.json"); err != nil {
+		panic(err) // Если не удалось загрузить конфигурацию, программа завершится с ошибкой
+	}
+}
+
+// loadConfigFromFile загружает конфигурацию из файла env.json
+func loadConfigFromFile(filePath string) error {
+	// Проверка на существование файла
+	if _, err := os.Stat(filePath); errors.Is(err, os.ErrNotExist) {
+		return errors.New("файл env.json не найден")
+	}
+
+	// Открытие файла
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Декодирование JSON
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(&config); err != nil {
+		return err
+	}
+
+	// Проверка обязательных полей
+	return validateConfig()
+}
+
+// validateConfig проверяет, что все обязательные поля присутствуют
+func validateConfig() error {
+	if config.PEPEUNIT_URL == "" ||
+		config.HTTP_TYPE == "" ||
+		config.MQTT_URL == "" ||
+		config.PEPEUNIT_TOKEN == "" ||
+		config.SYNC_ENCRYPT_KEY == "" ||
+		config.SECRET_KEY == "" ||
+		config.PING_INTERVAL == 0 ||
+		config.STATE_SEND_INTERVAL == 0 {
+		return errors.New("обязательные переменные отсутствуют или некорректны в env.json")
+	}
+	return nil
+}
+
+// GetConfig возвращает текущую объединённую конфигурацию
+func GetConfig() Config {
+	return config
+}
+
+// UpdateConfig позволяет обновлять переменные конфигурации через функцию
+func UpdateConfig(updateFunc func(cfg *Config)) {
+	updateFunc(&config)
+}
 
