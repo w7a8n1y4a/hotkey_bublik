@@ -2,7 +2,6 @@ package queries
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 )
@@ -37,20 +36,16 @@ type Unit struct {
 	UnitNodes                 []UnitNode `json:"unit_nodes"`
 }
 
-type ApiResponse struct {
+type UnitsByNodesResponse struct {
 	Count int    `json:"count"`
 	Units []Unit `json:"units"`
 }
 
-func TestQuery() {
+func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error){
 	// URL запроса
     url := "https://devunit.pepeunit.com/pepeunit/api/v1/units?is_include_output_unit_nodes=true&unit_node_uuids=b5bb0caa-e01f-4940-97da-a8400c1c5ed6&unit_node_uuids=4a7d0592-05cf-4360-a6bc-b6c95f5e146b&visibility_level=Public&visibility_level=Internal&visibility_level=Private&order_by_unit_name=asc&order_by_create_date=desc&order_by_last_update=desc&unit_node_type=Output&unit_node_type=Input"
 	// Создание HTTP-запроса
 	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		fmt.Println("Ошибка создания запроса:", err)
-		return
-	}
 
 	// Установка заголовков
 	req.Header.Set("accept", "application/json")
@@ -58,35 +53,18 @@ func TestQuery() {
 	// Отправка запроса
 	client := &http.Client{}
 	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Println("Ошибка выполнения запроса:", err)
-		return
-	}
+    if err != nil {
+        return
+    }
 	defer resp.Body.Close()
 
 	// Чтение ответа
 	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println("Ошибка чтения ответа:", err)
-		return
-	}
 
 	// Десериализация JSON
-	var apiResponse ApiResponse
-	err = json.Unmarshal(body, &apiResponse)
-	if err != nil {
-		fmt.Println("Ошибка декодирования JSON:", err)
-		return
-	}
-
-	// Вывод результата
-	fmt.Printf("Общее количество: %d\n", apiResponse.Count)
-	for _, unit := range apiResponse.Units {
-		fmt.Printf("UUID: %s, Name: %s, Create Date: %s\n", unit.UUID, unit.Name, unit.CreateDatetime)
-		for _, node := range unit.UnitNodes {
-			fmt.Printf("\tNode UUID: %s, Type: %s, Topic: %s\n", node.UUID, node.Type, node.TopicName)
-		}
-	}
+	err = json.Unmarshal(body, &unitsByNodes)
+    
+    return
 }
 
 
