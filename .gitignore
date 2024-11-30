@@ -1,2 +1,4 @@
 picker
 .nvim
+env.json
+schema.json
