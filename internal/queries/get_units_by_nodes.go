@@ -1,9 +1,13 @@
 package queries
 
 import (
-	"encoding/json"
+	"fmt"
+    "strings"
+    "encoding/json"
 	"io/ioutil"
 	"net/http"
+     
+	"picker/internal/config"
 )
 
 // Определение структур для десериализации JSON-ответа
@@ -42,13 +46,45 @@ type UnitsByNodesResponse struct {
 }
 
 func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error){
-	// URL запроса
-    url := "https://devunit.pepeunit.com/pepeunit/api/v1/units?is_include_output_unit_nodes=true&unit_node_uuids=b5bb0caa-e01f-4940-97da-a8400c1c5ed6&unit_node_uuids=4a7d0592-05cf-4360-a6bc-b6c95f5e146b&visibility_level=Public&visibility_level=Internal&visibility_level=Private&order_by_unit_name=asc&order_by_create_date=desc&order_by_last_update=desc&unit_node_type=Output&unit_node_type=Input"
-	// Создание HTTP-запроса
-	req, err := http.NewRequest("GET", url, nil)
+
+    cfg := config.GetConfig()
+
+    // Формируем параметры запроса
+	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/units", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL)
+
+	// Добавляем параметры в URL
+	params := []string{
+		"is_include_output_unit_nodes=true",
+		"visibility_level=Public",
+		"visibility_level=Internal",
+		"visibility_level=Private",
+		"order_by_unit_name=asc",
+		"order_by_create_date=desc",
+		"order_by_last_update=desc",
+		"unit_node_type=Output",
+		"unit_node_type=Input",
+	}
+    
+    unitNodeUUIDs := []string{
+        "b5bb0caa-e01f-4940-97da-a8400c1c5ed6",
+        "4a7d0592-05cf-4360-a6bc-b6c95f5e146b",
+    }
+
+	// Добавляем массив unitNodeUUIDs в параметры
+	for _, uuid := range unitNodeUUIDs {
+		params = append(params, "unit_node_uuids="+uuid)
+	}
+
+	// Собираем полный URL
+	fullURL := baseURL + "?" + strings.Join(params, "&")
+    fmt.Println(fullURL) 
+
+	// f Создание HTTP-запроса
+	req, err := http.NewRequest("GET", fullURL, nil)
 
 	// Установка заголовков
 	req.Header.Set("accept", "application/json")
+	req.Header.Set("x-auth-token", cfg.PEPEUNIT_TOKEN)
 
 	// Отправка запроса
 	client := &http.Client{}
