@@ -22,10 +22,6 @@ import (
 var iconData []byte
 
 func main() {
-    cfg := config.GetConfig()
-    
-    fmt.Println(cfg)
-
     systray.Run(onReady, onExit)
 
     data, err := queries.GetUnitsByNodesQuery()

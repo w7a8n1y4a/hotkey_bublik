@@ -8,6 +8,7 @@ import (
 	"net/http"
      
 	"picker/internal/config"
+	"picker/internal/schema"
 )
 
 // Определение структур для десериализации JSON-ответа
@@ -45,6 +46,17 @@ type UnitsByNodesResponse struct {
 	Units []Unit `json:"units"`
 }
 
+func extractUUIDs(urls []string) []string {
+	uuids := []string{}
+	for _, url := range urls {
+		parts := strings.Split(url, "/")
+		if len(parts) > 1 {
+			uuids = append(uuids, parts[1])
+		}
+	}
+	return uuids
+}
+
 func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error){
 
     cfg := config.GetConfig()
@@ -64,20 +76,18 @@ func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error){
 		"unit_node_type=Output",
 		"unit_node_type=Input",
 	}
-    
-    unitNodeUUIDs := []string{
-        "b5bb0caa-e01f-4940-97da-a8400c1c5ed6",
-        "4a7d0592-05cf-4360-a6bc-b6c95f5e146b",
-    }
+
+    schemaData, err := schema.LoadSchema()
+    outputNodes := schemaData.OutputTopic["output_units_nodes/pepeunit"]
+	uuids := extractUUIDs(outputNodes)
 
 	// Добавляем массив unitNodeUUIDs в параметры
-	for _, uuid := range unitNodeUUIDs {
+	for _, uuid := range uuids {
 		params = append(params, "unit_node_uuids="+uuid)
 	}
 
 	// Собираем полный URL
 	fullURL := baseURL + "?" + strings.Join(params, "&")
-    fmt.Println(fullURL) 
 
 	// f Создание HTTP-запроса
 	req, err := http.NewRequest("GET", fullURL, nil)

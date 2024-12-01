@@ -1,0 +1,12 @@
+{
+    "input_base_topic": [
+        "schema_update/pepeunit"
+    ],
+    "output_base_topic": [
+        "state/pepeunit"
+    ],
+    "input_topic": [],
+    "output_topic": [
+        "output_units_nodes/pepeunit"
+    ]
+}
