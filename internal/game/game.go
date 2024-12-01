@@ -3,9 +3,9 @@ package game
 import (
 	"image/color"
 	"math"
+    "fmt"
 	"picker/internal/config"
 	"picker/internal/graphics"
-
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
@@ -13,23 +13,28 @@ import (
 type Game struct{}
 
 func (g *Game) Update() error {
-    cfg := config.GetConfig()
-    
+	// Закрыть игру при нажатии клавиши Esc
+	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
+	    return fmt.Errorf("game closed by user")
+    }
+
+	cfg := config.GetConfig()
 	mouseX, mouseY := ebiten.CursorPosition()
 	dx, dy := mouseX - cfg.PickerCenterX, mouseY - cfg.PickerCenterY
 	angle := math.Atan2(-float64(dy), -float64(dx)) + math.Pi
 
 	segmentAngle := 2 * math.Pi / float64(cfg.NumSegments)
 
-    config.UpdateConfig(func(cfg *config.Config) {
-	    cfg.SelectedSegment = int(angle / segmentAngle) % cfg.NumSegments
-    })
+	// Обновляем выбранный сегмент
+	config.UpdateConfig(func(cfg *config.Config) {
+		cfg.SelectedSegment = int(angle / segmentAngle) % cfg.NumSegments
+	})
 
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-    cfg := config.GetConfig()
+	cfg := config.GetConfig()
 
 	if cfg.BlurredBackground == nil {
 		ebitenutil.DebugPrint(screen, "Загрузка размытого фона...")
@@ -55,8 +60,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-    cfg := config.GetConfig()
-
+	cfg := config.GetConfig()
 	return cfg.ScreenWidth, cfg.ScreenHeight
 }
-
