@@ -1,0 +1,11 @@
+{   
+    "PEPEUNIT_URL": "unit.pepemoss.com",
+    "HTTP_TYPE": "https",
+    "MQTT_URL": "emqx.pepemoss.com",
+    "PEPEUNIT_TOKEN": "jwt_token",
+    "SYNC_ENCRYPT_KEY": "32_bit_encrypt_key",
+    "SECRET_KEY": "32_bit_secret_key",
+    "PING_INTERVAL": 30,
+    "STATE_SEND_INTERVAL": 300
+}
+
