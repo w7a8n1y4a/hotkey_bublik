@@ -1,8 +1,8 @@
 package main
 
 import (
-    _ "embed"
 	"bytes"
+	_ "embed"
 	"fmt"
 	"image"
 	"image/png"
@@ -12,17 +12,18 @@ import (
 	"picker/internal/config"
 	"picker/internal/game"
 	"picker/internal/graphics"
+	"picker/internal/mqttclient"
 	"picker/internal/queries"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/getlantern/systray"
+	"github.com/hajimehoshi/ebiten/v2"
 	"golang.design/x/hotkey"
 	"golang.design/x/hotkey/mainthread"
 )
 
 // Global variables
-var gameRunning bool  // Flag to track the game state
-var blurredBackground *ebiten.Image  // To store the blurred background
+var gameRunning bool                // Flag to track the game state
+var blurredBackground *ebiten.Image // To store the blurred background
 
 //go:embed assets/icons/64.png
 var iconData []byte
@@ -51,13 +52,13 @@ func main() {
 // Register the global hotkey (Ctrl + Shift + H)
 func registerGlobalHotkey() {
 	hk := hotkey.New([]hotkey.Modifier{hotkey.ModCtrl, hotkey.ModShift}, hotkey.KeyH)
-	
-    err := hk.Unregister()
+
+	err := hk.Unregister()
 	if err != nil {
 		log.Printf("hotkey: failed to unregister previous hotkey: %v", err)
 	}
 
-    err = hk.Register()
+	err = hk.Register()
 	if err != nil {
 		log.Fatalf("hotkey: failed to register hotkey: %v", err)
 		return
@@ -70,7 +71,7 @@ func registerGlobalHotkey() {
 		log.Printf("Global hotkey: %v is down\n", hk)
 		// Launch the game when hotkey is pressed
 		if !gameRunning {
-			gameRunning = true
+			gameRunning = true 
 			go startGame()
 		}
 		<-hk.Keyup()
@@ -85,8 +86,11 @@ func onReady(icon []byte) {
 	systray.SetTitle("Tray Example")
 	systray.SetTooltip("Minimal Tray App")
 
+	client, err := mqttclient.RunMqttClient()
+	fmt.Println(client, err)
+
 	// Menu item to start the game
-	mButton := systray.AddMenuItem("Выполнить действие", "Нажмите для выполнения")
+	mButton := systray.AddMenuItem("Меню", "Нажмите для выполнения")
 	go func() {
 		for {
 			select {
@@ -180,4 +184,3 @@ func restartApplication() {
 	}
 	os.Exit(0)
 }
-
