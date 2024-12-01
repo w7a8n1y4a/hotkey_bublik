@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-    "log"
-    "picker/internal/config"
-    "math/rand"
+	"log"
+	"math/rand"
+	"picker/internal/config"
+	"picker/internal/queries"
+	"picker/internal/schema"
 	"strings"
 	"time"
-	"picker/internal/schema"
 )
 
 // MqttClient структура для управления MQTT клиентом
@@ -32,19 +33,18 @@ func GenerateRandomString(n int) string {
 
 // New создаёт новый экземпляр MqttClient
 func New() (*MqttClient, error) {
-    cfg := config.GetConfig()
+	cfg := config.GetConfig()
 
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(fmt.Sprintf("tcp://%s:%d", cfg.MQTT_URL, 1883))
-	opts.SetClientID(GenerateRandomString(10))
+	opts.SetClientID(cfg.UnitUUID)
 	opts.SetUsername(cfg.PEPEUNIT_TOKEN)
 	opts.SetPassword("putblic")
 	opts.SetKeepAlive(60 * time.Second)
 	opts.SetPingTimeout(time.Duration(cfg.PING_INTERVAL) * time.Second)
-    opts.SetCleanSession(true)
-    opts.SetAutoReconnect(true)
-    opts.SetMaxReconnectInterval(10 * time.Second)
-
+	opts.SetCleanSession(true)
+	opts.SetAutoReconnect(true)
+	opts.SetMaxReconnectInterval(10 * time.Second)
 
 	client := mqtt.NewClient(opts)
 	token := client.Connect()
@@ -52,9 +52,9 @@ func New() (*MqttClient, error) {
 		return nil, token.Error()
 	}
 
-    fmt.Printf("Статус подключения после публикации: %s\n", client.IsConnected())
-    fmt.Printf("Статус подключения после публикации: %s\n", client.IsConnectionOpen())
-    
+	fmt.Printf("Статус подключения после публикации: %s\n", client.IsConnected())
+	fmt.Printf("Статус подключения после публикации: %s\n", client.IsConnectionOpen())
+
 	return &MqttClient{client: client}, nil
 }
 
@@ -68,11 +68,11 @@ func (m *MqttClient) Publish(topic string, qos byte, retained bool, payload inte
 // Subscribe подписывается на заданный топик и обрабатывает входящие сообщения
 func (m *MqttClient) Subscribe(topics []string, qos byte, callback func(client mqtt.Client, msg mqtt.Message)) error {
 	filters := make(map[string]byte)
-    for _, topic := range topics {
-        filters[topic] = qos
-    }
+	for _, topic := range topics {
+		filters[topic] = qos
+	}
 
-    token := m.client.SubscribeMultiple(filters, callback)
+	token := m.client.SubscribeMultiple(filters, callback)
 	token.Wait()
 	return token.Error()
 }
@@ -87,11 +87,15 @@ func RunMqttClient() (*MqttClient, error) {
 	client, err := New()
 	if err != nil {
 		log.Fatalf("Ошибка подключения к MQTT брокеру: %v", err)
-    }
+	}
 
 	// Обработчик входящих сообщений
 	messageHandler := func(client mqtt.Client, msg mqtt.Message) {
 		fmt.Printf("Получено сообщение из топика %s: %s\n", msg.Topic(), msg.Payload())
+		newSchema, err := queries.GetCurrentSchema()
+		if err == nil {
+            err = schema.SaveSchema(newSchema)
+		}
 	}
 
 	schemaData, err := schema.LoadSchema()
@@ -110,7 +114,6 @@ func RunMqttClient() (*MqttClient, error) {
 func (m *MqttClient) IsConnected() bool {
 	return m.client.IsConnected()
 }
-
 
 func (m *MqttClient) Connect() mqtt.Token {
 	return m.client.Connect()

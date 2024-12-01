@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+    "encoding/base64"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -30,6 +32,12 @@ type Config struct {
 	SelectedSegment   int            `json:"-"`
 	NumSegments       int            `json:"-"`
 	BlurredBackground *ebiten.Image  `json:"-"`
+    UnitUUID          string         `json:"-"`
+}
+
+type Payload struct {
+	UUID string `json:"uuid"`
+	Type string `json:"type"`
 }
 
 // Глобальная переменная для объединённой конфигурации
@@ -54,6 +62,31 @@ func init() {
 	}
 }
 
+func getUuidFromToken(jwt string) (string, error) {
+	// Разделяем JWT на части
+	parts := strings.Split(jwt, ".")
+	if len(parts) != 3 {
+		return "", errors.New("неверный формат JWT")
+	}
+
+	// Декодируем полезную нагрузку (вторая часть)
+	payloadBase64 := parts[1]
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(payloadBase64)
+	if err != nil {
+		return "", errors.New("ошибка декодирования Base64: " + err.Error())
+	}
+
+	// Распарсим JSON в структуру
+	var payload Payload
+	err = json.Unmarshal(payloadBytes, &payload)
+	if err != nil {
+		return "", errors.New("ошибка парсинга JSON: " + err.Error())
+	}
+
+	// Возвращаем UUID
+	return payload.UUID, nil
+}
+
 // loadConfigFromFile загружает конфигурацию из файла env.json
 func loadConfigFromFile(filePath string) error {
 	// Проверка на существование файла
@@ -73,6 +106,8 @@ func loadConfigFromFile(filePath string) error {
 	if err := decoder.Decode(&config); err != nil {
 		return err
 	}
+
+    config.UnitUUID, err = getUuidFromToken(config.PEPEUNIT_TOKEN)
 
 	// Проверка обязательных полей
 	return validateConfig()
