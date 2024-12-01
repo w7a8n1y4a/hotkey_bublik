@@ -1,8 +1,11 @@
 package main
 
 import (
-	_ "embed"
+    _ "embed"
+	"bytes"
 	"fmt"
+	"image"
+	"image/png"
 	"log"
 	"os"
 	"os/exec"
@@ -10,52 +13,84 @@ import (
 	"picker/internal/game"
 	"picker/internal/graphics"
 	"picker/internal/queries"
-	"bytes"
-	"image"
-	"image/png"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/getlantern/systray"
+	"golang.design/x/hotkey"
+	"golang.design/x/hotkey/mainthread"
 )
 
-var gameRunning bool // Флаг для отслеживания состояния игры
-var blurredBackground *ebiten.Image // Сохранение размытого фона заранее
+// Global variables
+var gameRunning bool  // Flag to track the game state
+var blurredBackground *ebiten.Image  // To store the blurred background
 
 //go:embed assets/icons/64.png
 var iconData []byte
 
 func main() {
-	// Подготовка иконки и других ресурсов
+	// Initialize the hotkey listener in the main thread
+	mainthread.Init(func() {
+		registerGlobalHotkey()
+	})
+
+	// Prepare icon and other resources
 	icon, err := loadIcon(iconData)
 	if err != nil {
 		log.Fatal("Ошибка загрузки иконки:", err)
 	}
 
-	// Загрузка размытого фона
+	// Load the blurred background
 	blurredBackground = graphics.BlurScreenshot()
 
-	// Запускаем иконку в системном лотке
+	// Start the system tray app
 	systray.Run(func() {
 		onReady(icon)
 	}, onExit)
 }
 
-func onReady(icon []byte) {
-	// Устанавливаем иконку
-	systray.SetIcon(icon)
+// Register the global hotkey (Ctrl + Shift + H)
+func registerGlobalHotkey() {
+	hk := hotkey.New([]hotkey.Modifier{hotkey.ModCtrl, hotkey.ModShift}, hotkey.KeyH)
+	
+    err := hk.Unregister()
+	if err != nil {
+		log.Printf("hotkey: failed to unregister previous hotkey: %v", err)
+	}
 
-	// Заголовок и тултип
+    err = hk.Register()
+	if err != nil {
+		log.Fatalf("hotkey: failed to register hotkey: %v", err)
+		return
+	}
+
+	log.Printf("Global hotkey: %v is registered\n", hk)
+	// Listen for the hotkey press in a separate goroutine
+	go func() {
+		<-hk.Keydown()
+		log.Printf("Global hotkey: %v is down\n", hk)
+		// Launch the game when hotkey is pressed
+		if !gameRunning {
+			gameRunning = true
+			go startGame()
+		}
+		<-hk.Keyup()
+		log.Printf("Global hotkey: %v is up\n", hk)
+	}()
+}
+
+// Function for handling tray menu and actions
+func onReady(icon []byte) {
+	// Set tray icon and menu options
+	systray.SetIcon(icon)
 	systray.SetTitle("Tray Example")
 	systray.SetTooltip("Minimal Tray App")
 
-	// Кнопка для запуска игры
+	// Menu item to start the game
 	mButton := systray.AddMenuItem("Выполнить действие", "Нажмите для выполнения")
-
-	// Горутина для обработки нажатия на кнопку
 	go func() {
 		for {
 			select {
 			case <-mButton.ClickedCh:
-				// Запускаем игру в горутине, если она не запущена
 				if !gameRunning {
 					gameRunning = true
 					go startGame()
@@ -66,7 +101,7 @@ func onReady(icon []byte) {
 		}
 	}()
 
-	// Кнопка выхода
+	// Exit menu item
 	mQuit := systray.AddMenuItem("Выход", "Закрыть приложение")
 	go func() {
 		<-mQuit.ClickedCh
@@ -74,86 +109,75 @@ func onReady(icon []byte) {
 	}()
 }
 
+// Exit handler for the system tray
 func onExit() {
-	// Очистка ресурсов перед выходом
 	fmt.Println("Приложение завершено")
 }
 
-// Функция для загрузки иконки
+// Function to load the icon image
 func loadIcon(data []byte) ([]byte, error) {
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
-
 	var icon []byte
 	buf := new(bytes.Buffer)
 	if err := png.Encode(buf, img); err != nil {
 		return nil, err
 	}
 	icon = buf.Bytes()
-
 	return icon, nil
 }
 
-// Функция для подготовки игры
+// Function to prepare the game setup
 func prepareGame() (*game.Game, error) {
-	// Получаем данные для настройки игры
 	data, err := queries.GetUnitsByNodesQuery()
 	if err != nil {
 		return nil, fmt.Errorf("Ошибка при получении данных: %v", err)
 	}
 
-	// Обновляем конфигурацию с новыми данными
+	// Update the game configuration
 	config.UpdateConfig(func(cfg *config.Config) {
-		cfg.BlurredBackground = blurredBackground // Используем заранее загруженный фон
+		cfg.BlurredBackground = blurredBackground
 		cfg.NumSegments = data.Count
 	})
 
-	// Создаем объект игры
 	return &game.Game{}, nil
 }
 
-// Функция для запуска игры
+// Function to start the game
 func startGame() {
-	// Подготовка игры
+	// Prepare the game
 	gameInstance, err := prepareGame()
 	if err != nil {
 		log.Fatalf("Ошибка при подготовке игры: %v", err)
 		return
 	}
 
-	// Запуск игры в полноэкранном режиме
+	// Start the game in fullscreen mode
 	ebiten.SetFullscreen(true)
 	ebiten.SetWindowTitle("Picker")
 
-	// Проверяем, не запущена ли игра уже
+	// Run the game
 	if err := ebiten.RunGame(gameInstance); err != nil {
 		log.Printf("Ошибка запуска игры: %v", err)
 	}
 
-	// После завершения игры сбрасываем флаг
+	// After game finishes, reset the flag
 	gameRunning = false
-
-	// Перезапускаем приложение
 	restartApplication()
 }
 
-// Функция для перезапуска приложения
+// Function to restart the application
 func restartApplication() {
-	// Получаем текущий путь к исполнимому файлу
 	exe, err := os.Executable()
 	if err != nil {
 		log.Fatal("Не удалось получить исполнимый файл:", err)
 	}
-
-	// Перезапускаем приложение
 	cmd := exec.Command(exe)
 	if err := cmd.Start(); err != nil {
 		log.Fatal("Не удалось перезапустить приложение:", err)
 	}
-
-	// Завершаем текущий процесс
 	os.Exit(0)
 }
 
