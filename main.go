@@ -146,7 +146,7 @@ func prepareGame(client *mqttclient.MqttClient) (*game.Game, error) {
 		cfg.BlurredBackground = blurredBackground
 	})
 
-    return &game.Game{Client: client, Units: data}, nil
+    return &game.Game{Client: client, Units: data, SelectSegment: -1}, nil
 }
 
 // Function to start the game

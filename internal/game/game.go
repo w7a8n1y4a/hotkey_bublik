@@ -10,12 +10,15 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
     "picker/internal/mqttclient"
     "picker/internal/queries"
+    "picker/internal/state"
 )
 
 type Game struct{
     Client *mqttclient.MqttClient
     Units queries.UnitsByNodesResponse
+    StateManager state.StateManager
     isMouseDown bool
+    SelectSegment int
 }
 
 func (g *Game) Update() error {
@@ -33,7 +36,7 @@ func (g *Game) Update() error {
 
     // Обновляем выбранный сегмент
     config.UpdateConfig(func(cfg *config.Config) {
-        cfg.SelectedSegment = int(angle / segmentAngle) % g.Units.Count
+        g.SelectSegment = int(angle / segmentAngle) % g.Units.Count
     })
 
     // Обработка нажатия мыши
@@ -41,7 +44,7 @@ func (g *Game) Update() error {
         if !g.isMouseDown {
             // Если кнопка была не нажата, а теперь нажата
             g.isMouseDown = true
-            if g.Units.Count > 0 && cfg.SelectedSegment == 1 {
+            if g.Units.Count > 0 && g.SelectSegment == 1 {
                 fmt.Println(g.Units.Units)
                 err := g.Client.Publish("devunit.pepeunit.com/6d26314c-a030-498f-a5ef-b7544f460f88/pepeunit", 0, false, "{\"sleep\": 10, \"duty\": 32000}") 
                 if err == nil {
@@ -72,14 +75,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		angleStart := float64(i) * segmentAngle
 		angleEnd := angleStart + segmentAngle
 		clr := color.RGBA{255, 255, 255, 128}
-		if i == cfg.SelectedSegment {
+		if i == g.SelectSegment {
 			clr = color.RGBA{255, 0, 0, 200}
 		}
 		graphics.DrawSegment(screen, cfg.PickerCenterX, cfg.PickerCenterY, cfg.RadiusInner, cfg.RadiusOuter, angleStart, angleEnd, clr)
 	}
 
-	if cfg.SelectedSegment >= 0 {
-		ebitenutil.DebugPrint(screen, "segment: " + g.Units.Units[cfg.SelectedSegment].Name)
+	if g.SelectSegment >= 0 {
+		ebitenutil.DebugPrint(screen, "segment: " + g.Units.Units[g.SelectSegment].Name)
 	}
 
 }

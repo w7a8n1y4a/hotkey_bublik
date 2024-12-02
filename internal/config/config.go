@@ -29,7 +29,6 @@ type Config struct {
 	PickerCenterY     int            `json:"-"`
 	RadiusInner       int            `json:"-"`
 	RadiusOuter       int            `json:"-"`
-	SelectedSegment   int            `json:"-"`
 	BlurredBackground *ebiten.Image  `json:"-"`
     UnitUUID          string         `json:"-"`
 }
@@ -48,7 +47,6 @@ func init() {
 	config = Config{
 		RadiusInner:       150,
 		RadiusOuter:       200,
-		SelectedSegment:   -1,
 	}
 
     config.ScreenWidth, config.ScreenHeight = ebiten.Monitor().Size()
