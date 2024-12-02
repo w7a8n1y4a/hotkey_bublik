@@ -8,29 +8,53 @@ import (
 	"picker/internal/graphics"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+    "picker/internal/mqttclient"
+    "picker/internal/queries"
 )
 
-type Game struct{}
+type Game struct{
+    Client *mqttclient.MqttClient
+    Units queries.UnitsByNodesResponse
+    isMouseDown bool
+}
 
 func (g *Game) Update() error {
-	// Закрыть игру при нажатии клавиши Esc
-	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
-	    return fmt.Errorf("game closed by user")
+    // Закрыть игру при нажатии клавиши Esc
+    if ebiten.IsKeyPressed(ebiten.KeyEscape) {
+        return fmt.Errorf("game closed by user")
     }
 
-	cfg := config.GetConfig()
-	mouseX, mouseY := ebiten.CursorPosition()
-	dx, dy := mouseX - cfg.PickerCenterX, mouseY - cfg.PickerCenterY
-	angle := math.Atan2(-float64(dy), -float64(dx)) + math.Pi
+    cfg := config.GetConfig()
+    mouseX, mouseY := ebiten.CursorPosition()
+    dx, dy := mouseX-cfg.PickerCenterX, mouseY-cfg.PickerCenterY
+    angle := math.Atan2(-float64(dy), -float64(dx)) + math.Pi
 
-	segmentAngle := 2 * math.Pi / float64(cfg.NumSegments)
+    segmentAngle := 2 * math.Pi / float64(g.Units.Count)
 
-	// Обновляем выбранный сегмент
-	config.UpdateConfig(func(cfg *config.Config) {
-		cfg.SelectedSegment = int(angle / segmentAngle) % cfg.NumSegments
-	})
+    // Обновляем выбранный сегмент
+    config.UpdateConfig(func(cfg *config.Config) {
+        cfg.SelectedSegment = int(angle / segmentAngle) % g.Units.Count
+    })
 
-	return nil
+    // Обработка нажатия мыши
+    if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+        if !g.isMouseDown {
+            // Если кнопка была не нажата, а теперь нажата
+            g.isMouseDown = true
+            if g.Units.Count > 0 && cfg.SelectedSegment == 1 {
+                fmt.Println(g.Units.Units)
+                err := g.Client.Publish("devunit.pepeunit.com/6d26314c-a030-498f-a5ef-b7544f460f88/pepeunit", 0, false, "{\"sleep\": 10, \"duty\": 32000}") 
+                if err == nil {
+                    fmt.Println("Sendet")
+                }
+            }
+        }
+    } else {
+        // Сбрасываем флаг, если кнопка отпущена
+        g.isMouseDown = false
+    }
+
+    return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -43,8 +67,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	screen.DrawImage(cfg.BlurredBackground, nil)
 
-	segmentAngle := 2 * math.Pi / float64(cfg.NumSegments)
-	for i := 0; i < cfg.NumSegments; i++ {
+	segmentAngle := 2 * math.Pi / float64(g.Units.Count)
+	for i := 0; i < g.Units.Count; i++ {
 		angleStart := float64(i) * segmentAngle
 		angleEnd := angleStart + segmentAngle
 		clr := color.RGBA{255, 255, 255, 128}
@@ -57,6 +81,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	if cfg.SelectedSegment >= 0 {
 		ebitenutil.DebugPrint(screen, "Выбранный сегмент: "+string(rune('A'+cfg.SelectedSegment)))
 	}
+
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {

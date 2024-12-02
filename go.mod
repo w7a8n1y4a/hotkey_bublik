@@ -14,6 +14,7 @@ require (
 	github.com/ebitengine/gomobile v0.0.0-20241016134836-cc2e38a7c0ee // indirect
 	github.com/ebitengine/hideconsole v1.0.0 // indirect
 	github.com/ebitengine/purego v0.8.1 // indirect
+	github.com/eclipse/paho.mqtt.golang v1.5.0 // indirect
 	github.com/gen2brain/shm v0.1.1 // indirect
 	github.com/getlantern/context v0.0.0-20220418194847-3d5e7a086201 // indirect
 	github.com/getlantern/errors v1.0.4 // indirect
@@ -25,6 +26,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/jezek/xgb v1.1.1 // indirect
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
@@ -35,6 +37,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.design/x/mainthread v0.3.0 // indirect
 	golang.org/x/image v0.22.0 // indirect
+	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/sync v0.9.0 // indirect
 	golang.org/x/sys v0.27.0 // indirect
 )

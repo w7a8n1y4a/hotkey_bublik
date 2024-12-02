@@ -3,7 +3,7 @@ package schema
 import (
 	"encoding/json"
 	"fmt"
-    "io/ioutil"
+	"io/ioutil"
 	"os"
 )
 
@@ -37,7 +37,7 @@ func LoadSchema() (*Schema, error) {
 }
 
 // SaveSchema записывает обновленную JSON schema в файл
-func SaveSchema(schema *Schema) error {
+func SaveSchema(schema Schema) error {
 	data, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
 		return fmt.Errorf("ошибка сериализации JSON: %w", err)
@@ -47,6 +47,7 @@ func SaveSchema(schema *Schema) error {
 		return fmt.Errorf("ошибка записи в файл: %w", err)
 	}
 
+    fmt.Println("Новая схема успешно записана")
+
 	return nil
 }
-
