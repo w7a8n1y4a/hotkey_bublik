@@ -79,7 +79,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	if cfg.SelectedSegment >= 0 {
-		ebitenutil.DebugPrint(screen, "Выбранный сегмент: "+string(rune('A'+cfg.SelectedSegment)))
+		ebitenutil.DebugPrint(screen, "segment: " + g.Units.Units[cfg.SelectedSegment].Name)
 	}
 
 }
