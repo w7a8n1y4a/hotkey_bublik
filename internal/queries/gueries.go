@@ -45,6 +45,11 @@ type UnitsByNodesResponse struct {
 	Units []Unit `json:"units"`
 }
 
+type UnitNodesResponse struct {
+   	Count int            `json:"count"`
+	UnitNodes []UnitNode `json:"unit_nodes"` 
+}
+
 func extractUUIDs(urls []string) []string {
 	uuids := []string{}
 	for _, url := range urls {
@@ -55,6 +60,56 @@ func extractUUIDs(urls []string) []string {
 	}
 	return uuids
 }
+
+func GetInputByOutput() (unitNodes UnitNodesResponse, err error) {
+
+	cfg := config.GetConfig()
+
+	// Формируем параметры запроса
+	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/unit_nodes", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL)
+    
+    schemaData, err := schema.LoadSchema()
+    
+    uuid := strings.Split(schemaData.OutputTopic["output_units_nodes/pepeunit"][0], "/")[1]
+
+	// Добавляем параметры в URL
+	params := []string{
+		"visibility_level=Public",
+		"visibility_level=Internal",
+		"visibility_level=Private",
+		"order_by_create_date=desc",
+		"type=Output",
+		"type=Input",
+        "output_uuid=" + uuid,
+	}
+
+	// Собираем полный URL
+	fullURL := baseURL + "?" + strings.Join(params, "&")
+
+	// f Создание HTTP-запроса
+	req, err := http.NewRequest("GET", fullURL, nil)
+
+	// Установка заголовков
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("x-auth-token", cfg.PEPEUNIT_TOKEN)
+
+	// Отправка запроса
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	// Чтение ответа
+	body, err := ioutil.ReadAll(resp.Body)
+
+	// Десериализация JSON
+	err = json.Unmarshal(body, &unitNodes)
+
+	return
+}
+
 
 func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error) {
 
@@ -76,13 +131,11 @@ func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error) {
 		"unit_node_type=Input",
 	}
 
-	schemaData, err := schema.LoadSchema()
-	outputNodes := schemaData.OutputTopic["output_units_nodes/pepeunit"]
-	uuids := extractUUIDs(outputNodes)
+    unitNodes, err := GetInputByOutput()
 
 	// Добавляем массив unitNodeUUIDs в параметры
-	for _, uuid := range uuids {
-		params = append(params, "unit_node_uuids="+uuid)
+	for _, item := range unitNodes.UnitNodes {
+		params = append(params, "unit_node_uuids=" + item.UUID)
 	}
 
 	// Собираем полный URL
