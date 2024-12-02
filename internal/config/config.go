@@ -30,7 +30,6 @@ type Config struct {
 	RadiusInner       int            `json:"-"`
 	RadiusOuter       int            `json:"-"`
 	SelectedSegment   int            `json:"-"`
-	NumSegments       int            `json:"-"`
 	BlurredBackground *ebiten.Image  `json:"-"`
     UnitUUID          string         `json:"-"`
 }

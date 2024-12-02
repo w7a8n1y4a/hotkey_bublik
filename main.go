@@ -29,9 +29,13 @@ var blurredBackground *ebiten.Image // To store the blurred background
 var iconData []byte
 
 func main() {
+
+    client, err := mqttclient.RunMqttClient()
+	fmt.Println(client, err)
+
 	// Initialize the hotkey listener in the main thread
 	mainthread.Init(func() {
-		registerGlobalHotkey()
+		registerGlobalHotkey(client)
 	})
 
 	// Prepare icon and other resources
@@ -45,12 +49,12 @@ func main() {
 
 	// Start the system tray app
 	systray.Run(func() {
-		onReady(icon)
+		onReady(icon, client)
 	}, onExit)
 }
 
 // Register the global hotkey (Ctrl + Shift + H)
-func registerGlobalHotkey() {
+func registerGlobalHotkey(client *mqttclient.MqttClient) {
 	hk := hotkey.New([]hotkey.Modifier{hotkey.ModCtrl, hotkey.ModShift}, hotkey.KeyH)
 
 	err := hk.Unregister()
@@ -71,8 +75,8 @@ func registerGlobalHotkey() {
 		log.Printf("Global hotkey: %v is down\n", hk)
 		// Launch the game when hotkey is pressed
 		if !gameRunning {
-			gameRunning = true 
-			go startGame()
+			gameRunning = true
+			go startGame(client)
 		}
 		<-hk.Keyup()
 		log.Printf("Global hotkey: %v is up\n", hk)
@@ -80,14 +84,11 @@ func registerGlobalHotkey() {
 }
 
 // Function for handling tray menu and actions
-func onReady(icon []byte) {
+func onReady(icon []byte, client *mqttclient.MqttClient) {
 	// Set tray icon and menu options
 	systray.SetIcon(icon)
 	systray.SetTitle("Tray Example")
 	systray.SetTooltip("Minimal Tray App")
-
-	client, err := mqttclient.RunMqttClient()
-	fmt.Println(client, err)
 
 	// Menu item to start the game
 	mButton := systray.AddMenuItem("Меню", "Нажмите для выполнения")
@@ -97,7 +98,7 @@ func onReady(icon []byte) {
 			case <-mButton.ClickedCh:
 				if !gameRunning {
 					gameRunning = true
-					go startGame()
+					go startGame(client)
 				} else {
 					log.Println("Игра уже запущена.")
 				}
@@ -134,7 +135,7 @@ func loadIcon(data []byte) ([]byte, error) {
 }
 
 // Function to prepare the game setup
-func prepareGame() (*game.Game, error) {
+func prepareGame(client *mqttclient.MqttClient) (*game.Game, error) {
 	data, err := queries.GetUnitsByNodesQuery()
 	if err != nil {
 		return nil, fmt.Errorf("Ошибка при получении данных: %v", err)
@@ -143,16 +144,15 @@ func prepareGame() (*game.Game, error) {
 	// Update the game configuration
 	config.UpdateConfig(func(cfg *config.Config) {
 		cfg.BlurredBackground = blurredBackground
-		cfg.NumSegments = data.Count
 	})
 
-	return &game.Game{}, nil
+    return &game.Game{Client: client, Units: data}, nil
 }
 
 // Function to start the game
-func startGame() {
+func startGame(client *mqttclient.MqttClient) {
 	// Prepare the game
-	gameInstance, err := prepareGame()
+	gameInstance, err := prepareGame(client)
 	if err != nil {
 		log.Fatalf("Ошибка при подготовке игры: %v", err)
 		return
