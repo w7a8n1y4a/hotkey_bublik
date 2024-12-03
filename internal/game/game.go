@@ -46,7 +46,12 @@ func (g *Game) Update() error {
             g.isMouseDown = true
             if g.Units.Count > 0 && g.SelectSegment == 1 {
                 fmt.Println(g.Units.Units)
-                err := g.Client.Publish("devunit.pepeunit.com/6d26314c-a030-498f-a5ef-b7544f460f88/pepeunit", 0, false, "{\"sleep\": 10, \"duty\": 32000}") 
+                err := g.Client.Publish(
+                    "devunit.pepeunit.com/6d26314c-a030-498f-a5ef-b7544f460f88/pepeunit",
+                    0,
+                    false,
+                    "{\"sleep\": 10, \"duty\": 32000}",
+                ) 
                 if err == nil {
                     fmt.Println("Sendet")
                 }
@@ -78,13 +83,26 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if i == g.SelectSegment {
 			clr = color.RGBA{255, 0, 0, 200}
 		}
-		graphics.DrawSegment(screen, cfg.PickerCenterX, cfg.PickerCenterY, cfg.RadiusInner, cfg.RadiusOuter, angleStart, angleEnd, clr)
+		graphics.DrawSegment(
+            screen,
+            cfg.PickerCenterX,
+            cfg.PickerCenterY,
+            cfg.RadiusInner,
+            cfg.RadiusOuter,
+            angleStart,
+            angleEnd,
+            clr,
+        )
 	}
 
-	if g.SelectSegment >= 0 {
-		ebitenutil.DebugPrint(screen, "segment: " + g.Units.Units[g.SelectSegment].Name)
+    if g.SelectSegment >= 0 {
+		ebitenutil.DebugPrintAt(
+			screen,
+			g.Units.Units[g.SelectSegment].Name,
+			int(cfg.ScreenWidth/2),
+			int(cfg.ScreenHeight/2),
+		)
 	}
-
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
