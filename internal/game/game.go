@@ -13,11 +13,11 @@ import (
     "picker/internal/state"
 )
 
-type Game struct{
-    Client *mqttclient.MqttClient
-    Units queries.UnitsByNodesResponse
+type Game struct {
+    Client       *mqttclient.MqttClient
+    Units        queries.UnitsByNodesResponse
     StateManager state.StateManager
-    isMouseDown bool
+    KeyDownMap   map[ebiten.Key]bool // Состояние кнопок
     SelectSegment int
     ActiveLayer   int // Индекс текущего слоя
     Layers        [][]string // Слои, где каждый содержит свои элементы
@@ -38,33 +38,72 @@ func (g *Game) Update() error {
 
     g.SelectSegment = int(angle / segmentAngle) % len(currentLayer)
 
-    if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-        if !g.isMouseDown {
-            g.isMouseDown = true
-            // Открываем следующий слой, если он есть
-            if g.ActiveLayer < len(g.Layers)-1 {
-                g.ActiveLayer++
-                g.SelectSegment = 0 // Сброс выбранного сегмента
+    g.handleKey(ebiten.KeyDelete, func() {
+        if g.ActiveLayer == 2 { // Удаление работает только на третьем слое
+            selectedItem := currentLayer[g.SelectSegment]
+            if selectedItem != "Add New" {
+                // Удаляем выбранный элемент
+                g.Layers[g.ActiveLayer] = append(
+                    g.Layers[g.ActiveLayer][:g.SelectSegment],
+                    g.Layers[g.ActiveLayer][g.SelectSegment+1:]...,
+                )
+                // Перемещаем выбор на предыдущий сегмент, если он есть
+                if g.SelectSegment >= len(g.Layers[g.ActiveLayer]) {
+                    g.SelectSegment = len(g.Layers[g.ActiveLayer]) - 1
+                }
+            }
+        }
+    })
+
+    g.handleKey(ebiten.Key(ebiten.MouseButtonLeft), func() {
+        // Обработка левой кнопки мыши
+        if g.ActiveLayer < len(g.Layers)-1 {
+            g.ActiveLayer++
+            g.SelectSegment = 0 // Сброс выбранного сегмента
+        } else {
+            selectedItem := currentLayer[g.SelectSegment]
+            if g.ActiveLayer == 2 && selectedItem == "Add New" {
+                // Логика добавления нового сегмента
+                g.Layers[g.ActiveLayer] = append(g.Layers[g.ActiveLayer], fmt.Sprintf("New %d", len(currentLayer)))
             } else {
-                fmt.Println("Активный элемент:", currentLayer[g.SelectSegment])
-                // Логика взаимодействия с последним слоем
+                fmt.Println("Активный элемент:", selectedItem)
             }
         }
-    } else if ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight) {
-        if !g.isMouseDown {
-            g.isMouseDown = true
-            // Возвращаемся на предыдущий слой, если он есть
-            if g.ActiveLayer > 0 {
-                g.ActiveLayer--
-                g.SelectSegment = 0 // Сброс выбранного сегмента
-            }
+    })
+
+    g.handleKey(ebiten.Key(ebiten.MouseButtonRight), func() {
+        // Обработка правой кнопки мыши
+        if g.ActiveLayer > 0 {
+            g.ActiveLayer--
+            g.SelectSegment = 0 // Сброс выбранного сегмента
         }
-    } else {
-        g.isMouseDown = false
-    }
+    })
 
     return nil
 }
+
+// handleKey - обобщённая обработка для любых кнопок
+func (g *Game) handleKey(key ebiten.Key, action func()) {
+    // Пытаемся использовать для мыши одинаковую логику
+    keyPressed := false
+    if key == ebiten.Key(ebiten.MouseButtonLeft) {
+        keyPressed = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
+    } else if key == ebiten.Key(ebiten.MouseButtonRight) {
+        keyPressed = ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight)
+    } else {
+        keyPressed = ebiten.IsKeyPressed(key)
+    }
+
+    if keyPressed {
+        if !g.KeyDownMap[key] {
+            g.KeyDownMap[key] = true
+            action() // выполняем действие при первом нажатии
+        }
+    } else {
+        g.KeyDownMap[key] = false // сбрасываем состояние, если кнопка отпущена
+    }
+}
+
 
 func (g *Game) Draw(screen *ebiten.Image) {
     cfg := config.GetConfig()
@@ -76,7 +115,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
     screen.DrawImage(cfg.BlurredBackground, nil)
 
-    // Отрисовываем все слои от 0 до ActiveLayer включительно
     for layerIndex := 0; layerIndex <= g.ActiveLayer; layerIndex++ {
         currentLayer := g.Layers[layerIndex]
         segmentAngle := 2 * math.Pi / float64(len(currentLayer))
@@ -87,23 +125,27 @@ func (g *Game) Draw(screen *ebiten.Image) {
             angleEnd := angleStart + segmentAngle
             clr := color.RGBA{176, 190, 197, 255}
             if layerIndex == g.ActiveLayer && i == g.SelectSegment {
-                // Выделяем текущий элемент только на активном слое
                 clr = color.RGBA{255, 61, 0, 255}
             }
             graphics.DrawSegment(
                 screen,
                 cfg.PickerCenterX,
                 cfg.PickerCenterY,
-                cfg.RadiusInner+ int(layerOffset),
+                cfg.RadiusInner+int(layerOffset),
                 cfg.RadiusInner+int(layerOffset)+cfg.ThickSegment,
                 angleStart+0.01,
                 angleEnd-0.01,
                 clr,
             )
+
+            if layerIndex == 2 && currentLayer[i] == "Add New" {
+                textX := cfg.PickerCenterX + int(float64(cfg.RadiusInner+int(layerOffset)+cfg.ThickSegment/2)*math.Cos(angleStart+segmentAngle/2)) - 10
+                textY := cfg.PickerCenterY - int(float64(cfg.RadiusInner+int(layerOffset)+cfg.ThickSegment/2)*math.Sin(angleStart+segmentAngle/2)) - 10
+                ebitenutil.DebugPrintAt(screen, "+", textX, textY)
+            }
         }
     }
 
-    // Показываем название выбранного элемента только для активного слоя
     if g.SelectSegment >= 0 && g.ActiveLayer < len(g.Layers) {
         currentLayer := g.Layers[g.ActiveLayer]
         ebitenutil.DebugPrintAt(
@@ -115,8 +157,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
     }
 }
 
-
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	cfg := config.GetConfig()
-	return cfg.ScreenWidth, cfg.ScreenHeight
+    cfg := config.GetConfig()
+    return cfg.ScreenWidth, cfg.ScreenHeight
 }
+
