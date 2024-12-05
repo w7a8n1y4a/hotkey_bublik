@@ -10,6 +10,7 @@ require (
 	github.com/hajimehoshi/ebiten/v2 v2.8.5
 	github.com/kbinani/screenshot v0.0.0-20240820160931-a8a2c5d0e191
 	golang.design/x/hotkey v0.4.1
+	golang.org/x/image v0.23.0
 )
 
 require (
@@ -37,8 +38,8 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.design/x/mainthread v0.3.0 // indirect
-	golang.org/x/image v0.23.0 // indirect
 	golang.org/x/net v0.32.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 )

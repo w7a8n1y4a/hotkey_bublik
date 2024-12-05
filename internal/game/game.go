@@ -2,11 +2,18 @@ package game
 
 import (
 	"fmt"
+	_ "embed"
     "github.com/atotto/clipboard"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+    "github.com/hajimehoshi/ebiten/v2/text"
 	"image/color"
+    "strings"
 	"math"
+    "log"
+    "golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
+
 	"picker/internal/config"
 	"picker/internal/graphics"
 	"picker/internal/mqttclient"
@@ -21,6 +28,9 @@ const (
 	ModeTextInput
 )
 
+//go:embed fonts/cornerita_black.ttf
+var fontData []byte
+
 type Game struct {
 	Client          *mqttclient.MqttClient
 	Units           queries.UnitsByNodesResponse
@@ -31,6 +41,59 @@ type Game struct {
     InputMode       InputMode
 	TextInput       string
 	OnTextInputDone func(string)
+}
+
+// LoadFont загружает шрифт из файла
+func LoadFont(size float64) font.Face {
+
+	tt, err := opentype.Parse(fontData)
+	if err != nil {
+		log.Fatalf("failed to parse font: %v", err)
+	}
+
+	face, err := opentype.NewFace(tt, &opentype.FaceOptions{
+		Size:    size,
+		DPI:     72,
+		Hinting: font.HintingFull,
+	})
+	if err != nil {
+		log.Fatalf("failed to create font face: %v", err)
+	}
+
+	return face
+}
+
+// DrawCenteredText отрисовывает большой текст с центрированием
+func DrawCenteredText(screen *ebiten.Image, face font.Face, textContent string, x, y, maxWidth, lineSpacing int, color color.Color) {
+	lines := wrapText(face, textContent, maxWidth)
+	totalHeight := len(lines) * (text.BoundString(face, "A").Dy() + lineSpacing)
+	startY := y - totalHeight/2
+
+	for i, line := range lines {
+		lineWidth := text.BoundString(face, line).Dx()
+		startX := x - lineWidth/2
+		text.Draw(screen, line, face, startX, startY+(i*(text.BoundString(face, "A").Dy()+lineSpacing)), color)
+	}
+}
+
+// wrapText разбивает текст на строки, которые помещаются в указанную ширину
+func wrapText(face font.Face, textContent string, maxWidth int) []string {
+	words := strings.Fields(textContent)
+	lines := []string{}
+	line := ""
+
+	for _, word := range words {
+		testLine := line + " " + word
+		if text.BoundString(face, strings.TrimSpace(testLine)).Dx() > maxWidth {
+			lines = append(lines, strings.TrimSpace(line))
+			line = word
+		} else {
+			line = testLine
+		}
+	}
+	lines = append(lines, strings.TrimSpace(line))
+
+	return lines
 }
 
 // Метод для переключения в режим ввода текста
@@ -241,17 +304,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	switch g.InputMode {
 	case ModeGame:
         for layerIndex := 0; layerIndex <= g.ActiveLayer; layerIndex++ {
-            var items []string
+            var items [][]string
 
             switch layerIndex {
             case 0:
                 for _, unit := range g.Units.Units {
-                    items = append(items, unit.Name)
+                    items = append(items, []string{unit.Name})
                 }
             case 1:
                 if g.SelectedSegments[0] < len(g.Units.Units) {
                     for _, node := range g.Units.Units[g.SelectedSegments[0]].UnitNodes {
-                        items = append(items, node.TopicName)
+                        items = append(items, []string{node.TopicName})
                     }
                 }
             case 2:
@@ -261,10 +324,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
                         selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
                         stateData := g.StateManager.GetState()[selectedNode.UUID]
                         
-                        items = append(items, "New Item")
+                        items = append(items, []string{"Create New Option"})
 
-                        for key, value := range stateData {
-                            items = append(items, fmt.Sprintf("%s: %s", key, value))
+                        for _, value := range stateData {
+                            items = append(items, value)
                         }
                     }
                 }
@@ -285,18 +348,59 @@ func (g *Game) Draw(screen *ebiten.Image) {
                     cfg.PickerCenterY,
                     cfg.RadiusInner+int(layerOffset),
                     cfg.RadiusInner+int(layerOffset)+cfg.ThickSegment,
-                    angleStart+0.01,
-                    angleEnd-0.01,
+                    angleStart+0.012,
+                    angleEnd-0.012,
                     clr,
                 )
             }
             if g.SelectedSegments[layerIndex] >= 0 && len(items) > g.SelectedSegments[layerIndex] {
-                ebitenutil.DebugPrintAt(
+                var fontSize int = 24
+                var centerY int = 0
+                fontFace := LoadFont(float64(fontSize)) // Укажите путь и размер шрифта
+
+                centerX := int(cfg.ScreenWidth/2)
+                centerUnit := int(cfg.ScreenHeight/2) - int(float64(fontSize)/2)
+                centerUnitNode := int(cfg.ScreenHeight/2) + int(float64(fontSize) * 1.5)
+                centerOption := int(cfg.ScreenHeight/2)
+
+                optionExternalLen := int(float64(cfg.RadiusInner) + float64(cfg.ThickSegment) * 3 + float64(fontSize) * float64(layerIndex))
+
+               
+                switch layerIndex {
+                    case 0:
+                        centerY = centerUnit
+                    case 1:
+                        centerY = centerUnitNode
+                    case 2:
+                        centerY = centerOption - optionExternalLen + fontSize
+                }
+                // _, _, _ = fontFace, centerX, centerY
+                // fmt.Println(items[g.SelectedSegments[layerIndex]]) 
+                DrawCenteredText(
                     screen,
-                    items[g.SelectedSegments[layerIndex]],
-                    int(cfg.ScreenWidth/2),
-                    int(cfg.ScreenHeight/2)+10*layerIndex,
+                    fontFace,
+                    items[g.SelectedSegments[layerIndex]][0],
+                    centerX,
+                    centerY,
+                    cfg.RadiusInner,
+                    4,
+                    color.White,
                 )
+
+                if len(items[g.SelectedSegments[layerIndex]]) == 2 {
+                    DrawCenteredText(
+                        screen,
+                        fontFace,
+                        items[g.SelectedSegments[layerIndex]][1],
+                        centerX,
+                        centerOption + optionExternalLen + 20,
+                        800,
+                        4,
+                        color.White,
+                    )
+ 
+                }
+
             }
         }
     case ModeTextInput:
