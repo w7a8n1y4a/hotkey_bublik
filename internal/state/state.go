@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"sync"
+    "fmt"
 )
 
 type StateManager struct {
@@ -23,9 +24,20 @@ func NewStateManager() (*StateManager, error) {
 		state:    make(map[string]map[string]string),
 	}
 
-	if _, err := os.Stat(filePath); errors.Is(err, os.ErrNotExist) {
-		return manager, nil // Файл не существует, возвращаем пустой менеджер
-	}
+    if _, err := os.Stat(filePath); errors.Is(err, os.ErrNotExist) {
+        // Создаем новый пустой файл
+        emptyState := make(map[string]map[string]string)
+        data, err := json.MarshalIndent(emptyState, "", "  ")
+        if err != nil {
+            return nil, err
+        }
+
+        if err := ioutil.WriteFile(filePath, data, 0644); err != nil {
+            return nil, err
+        }
+
+        return manager, nil // Возвращаем менеджер с пустым состоянием
+    }
 
 	// Загрузка состояния из файла
 	data, err := ioutil.ReadFile(filePath)
@@ -41,31 +53,48 @@ func NewStateManager() (*StateManager, error) {
 	return manager, nil
 }
 
-// Save сохраняет текущее состояние в файл.
-func (sm *StateManager) Save() error {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
 
-	data, err := json.MarshalIndent(sm.state, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(sm.filePath, data, 0644)
-}
-
-// AddOption добавляет новую опцию к UnitNode с указанным UUID.
 func (sm *StateManager) AddOption(unitNodeUUID, optionName, optionValue string) error {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
+    sm.mutex.Lock()
+    fmt.Println("Locked mutex in AddOption")
 
-	if _, exists := sm.state[unitNodeUUID]; !exists {
-		sm.state[unitNodeUUID] = make(map[string]string)
-	}
+    if _, exists := sm.state[unitNodeUUID]; !exists {
+        sm.state[unitNodeUUID] = make(map[string]string)
+    }
 
-	sm.state[unitNodeUUID][optionName] = optionValue
-	return sm.Save()
+    sm.state[unitNodeUUID][optionName] = optionValue
+    fmt.Println("State updated, calling Save")
+
+    sm.mutex.Unlock()
+
+    return sm.Save()
 }
+
+func (sm *StateManager) Save() error {
+    fmt.Println("Starting Save")
+    sm.mutex.Lock()
+    fmt.Println("Locked mutex in Save")
+    defer func() {
+        fmt.Println("Unlocking mutex in Save")
+        sm.mutex.Unlock()
+    }()
+
+    data, err := json.MarshalIndent(sm.state, "", "  ")
+    if err != nil {
+        fmt.Println("Error marshaling state:", err)
+        return err
+    }
+
+    err = ioutil.WriteFile(sm.filePath, data, 0644)
+    if err != nil {
+        fmt.Println("Error writing to file:", err)
+        return err
+    }
+
+    fmt.Println("State saved successfully")
+    return nil
+}
+
 
 // RemoveOption удаляет указанную опцию из UnitNode с указанным UUID.
 func (sm *StateManager) RemoveOption(unitNodeUUID, optionName string) error {

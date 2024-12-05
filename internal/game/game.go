@@ -14,104 +14,113 @@ import (
 )
 
 type Game struct {
-	Client        *mqttclient.MqttClient
-	Units         queries.UnitsByNodesResponse
-	StateManager  state.StateManager
-	KeyDownMap    map[ebiten.Key]bool // Состояние кнопок
-	SelectSegment int
-	ActiveLayer   int // Индекс текущего слоя
+	Client          *mqttclient.MqttClient
+	Units           queries.UnitsByNodesResponse
+	StateManager    *state.StateManager
+	KeyDownMap      map[ebiten.Key]bool // Состояние кнопок
+	SelectedSegments []int              // Хранение текущего выбора для каждого слоя
+	ActiveLayer     int                 // Индекс текущего слоя
 }
 
 func (g *Game) Update() error {
-    if ebiten.IsKeyPressed(ebiten.KeyEscape) {
-        return fmt.Errorf("game closed by user")
-    }
+	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
+		return fmt.Errorf("game closed by user")
+	}
 
-    cfg := config.GetConfig()
-    mouseX, mouseY := ebiten.CursorPosition()
-    dx, dy := mouseX-cfg.PickerCenterX, mouseY-cfg.PickerCenterY
-    angle := math.Atan2(-float64(dy), -float64(dx)) + math.Pi
+	cfg := config.GetConfig()
+	mouseX, mouseY := ebiten.CursorPosition()
+	dx, dy := mouseX-cfg.PickerCenterX, mouseY-cfg.PickerCenterY
+	angle := math.Atan2(-float64(dy), -float64(dx)) + math.Pi
 
-    var currentLayerLength int
-    switch g.ActiveLayer {
-    case 0: // Первый слой — список Units
-        currentLayerLength = len(g.Units.Units)
-    case 1: // Второй слой — UnitNodes выбранного Unit
-        if g.SelectSegment < len(g.Units.Units) {
-            currentLayerLength = len(g.Units.Units[g.SelectSegment].UnitNodes)
-        }
-    case 2: // Третий слой — данные из StateManager
-        if g.SelectSegment < len(g.Units.Units) {
-            selectedUnit := g.Units.Units[g.SelectSegment]
-            if g.SelectSegment < len(selectedUnit.UnitNodes) {
-                selectedNode := selectedUnit.UnitNodes[g.SelectSegment]
-                stateData := g.StateManager.GetState()[selectedNode.UUID]
-                currentLayerLength = len(stateData)
-            }
-        }
-    }
+	var currentLayerLength int
+	switch g.ActiveLayer {
+	case 0: // Первый слой — список Units
+		currentLayerLength = len(g.Units.Units)
+	case 1: // Второй слой — UnitNodes выбранного Unit
+		if g.SelectedSegments[0] < len(g.Units.Units) {
+			currentLayerLength = len(g.Units.Units[g.SelectedSegments[0]].UnitNodes)
+		}
+	case 2: // Третий слой — данные из StateManager
+		if g.SelectedSegments[0] < len(g.Units.Units) {
+			selectedUnit := g.Units.Units[g.SelectedSegments[0]]
+			if g.SelectedSegments[1] < len(selectedUnit.UnitNodes) {
+				selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
+				stateData := g.StateManager.GetState()[selectedNode.UUID]
+				currentLayerLength = len(stateData) + 1
+			}
+		}
+	}
 
-    if currentLayerLength > 0 {
-        segmentAngle := 2 * math.Pi / float64(currentLayerLength)
-        g.SelectSegment = int(angle / segmentAngle) % currentLayerLength
-    }
+	if currentLayerLength > 0 {
+		segmentAngle := 2 * math.Pi / float64(currentLayerLength)
+		g.SelectedSegments[g.ActiveLayer] = int(angle / segmentAngle) % currentLayerLength
+	}
 
-    // Обработка нажатий
-    g.handleKey(ebiten.KeyDelete, func() {
-        // Удаление работает только на третьем слое
-        if g.ActiveLayer == 2 {
-            if g.SelectSegment < len(g.Units.Units) {
-                selectedUnit := g.Units.Units[g.SelectSegment]
-                if g.SelectSegment < len(selectedUnit.UnitNodes) {
-                    selectedNode := selectedUnit.UnitNodes[g.SelectSegment]
-                    stateData := g.StateManager.GetState()[selectedNode.UUID]
-                    keys := make([]string, 0, len(stateData))
-                    for key := range stateData {
-                        keys = append(keys, key)
+	g.handleKey(ebiten.KeyDelete, func() {
+		if g.ActiveLayer == 2 {
+			selectedUnitIdx := g.SelectedSegments[0]
+			selectedNodeIdx := g.SelectedSegments[1]
+			if selectedUnitIdx < len(g.Units.Units) {
+				selectedUnit := g.Units.Units[selectedUnitIdx]
+				if selectedNodeIdx < len(selectedUnit.UnitNodes) {
+					selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
+					stateData := g.StateManager.GetState()[selectedNode.UUID]
+					keys := make([]string, 0, len(stateData))
+					for key := range stateData {
+						keys = append(keys, key)
+					}
+					if g.SelectedSegments[2] < len(keys) {
+						delete(stateData, keys[g.SelectedSegments[2]])
+					}
+				}
+			}
+		}
+	})
+
+	g.handleKey(ebiten.Key(ebiten.MouseButtonLeft), func() {
+		if g.ActiveLayer < 2 {
+			g.ActiveLayer++
+			g.SelectedSegments[g.ActiveLayer] = 0
+		} else if g.ActiveLayer == 2 {
+			selectedUnitIdx := g.SelectedSegments[0]
+			selectedNodeIdx := g.SelectedSegments[1]
+			if selectedUnitIdx < len(g.Units.Units) {
+				selectedUnit := g.Units.Units[selectedUnitIdx]
+				if selectedNodeIdx < len(selectedUnit.UnitNodes) {
+					selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
+                    fmt.Println(selectedNode.TopicName)
+					stateData := g.StateManager.GetState()[selectedNode.UUID]
+                    if g.SelectedSegments[2] == 0 {
+                        fmt.Println("This is Add button")
+
+                        g.StateManager.AddOption(
+                            selectedNode.UUID,
+                            fmt.Sprintf("Explosive %d", len(stateData) + 1),
+                            "1",
+                        )
+                    } else {
+                        if stateData != nil{
+                        
+                            fmt.Println(stateData)
+                        }
+                        
                     }
-                    if g.SelectSegment < len(keys) {
-                        delete(g.StateManager.GetState()[selectedNode.UUID], keys[g.SelectSegment])
-                    }
-                }
-            }
-        }
-    })
+				}
+			}
+		}
+	})
 
-    g.handleKey(ebiten.Key(ebiten.MouseButtonLeft), func() {
-        // Обработка левой кнопки мыши
-        if g.ActiveLayer < 2 {
-            g.ActiveLayer++
-            g.SelectSegment = 0 // Сброс выбора на следующем слое
-        } else {
-            // Логика добавления нового элемента
-            if g.ActiveLayer == 2 {
-                if g.SelectSegment < len(g.Units.Units) {
-                    selectedUnit := g.Units.Units[g.SelectSegment]
-                    if g.SelectSegment < len(selectedUnit.UnitNodes) {
-                        selectedNode := selectedUnit.UnitNodes[g.SelectSegment]
-                        stateData := g.StateManager.GetState()[selectedNode.UUID]
-                        stateData[fmt.Sprintf("New Key %d", len(stateData)+1)] = "New Value"
-                    }
-                }
-            }
-        }
-    })
+	g.handleKey(ebiten.Key(ebiten.MouseButtonRight), func() {
+		if g.ActiveLayer > 0 {
+			g.ActiveLayer--
+			g.SelectedSegments[g.ActiveLayer] = 0
+		}
+	})
 
-    g.handleKey(ebiten.Key(ebiten.MouseButtonRight), func() {
-        // Обработка правой кнопки мыши
-        if g.ActiveLayer > 0 {
-            g.ActiveLayer--
-            g.SelectSegment = 0 // Сброс выбора на предыдущем слое
-        }
-    })
-
-    return nil
+	return nil
 }
 
-
-// handleKey - обобщённая обработка для любых кнопок
 func (g *Game) handleKey(key ebiten.Key, action func()) {
-	// Пытаемся использовать для мыши одинаковую логику
 	keyPressed := false
 	if key == ebiten.Key(ebiten.MouseButtonLeft) {
 		keyPressed = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
@@ -124,10 +133,10 @@ func (g *Game) handleKey(key ebiten.Key, action func()) {
 	if keyPressed {
 		if !g.KeyDownMap[key] {
 			g.KeyDownMap[key] = true
-			action() // выполняем действие при первом нажатии
+			action()
 		}
 	} else {
-		g.KeyDownMap[key] = false // сбрасываем состояние, если кнопка отпущена
+		g.KeyDownMap[key] = false
 	}
 }
 
@@ -143,40 +152,42 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		var items []string
 
 		switch layerIndex {
-		case 0: // Первый слой — Units
+		case 0:
 			for _, unit := range g.Units.Units {
 				items = append(items, unit.Name)
 			}
-		case 1: // Второй слой — UnitNodes
-			if g.SelectSegment < len(g.Units.Units) {
-				for _, node := range g.Units.Units[g.SelectSegment].UnitNodes {
+		case 1:
+			if g.SelectedSegments[0] < len(g.Units.Units) {
+				for _, node := range g.Units.Units[g.SelectedSegments[0]].UnitNodes {
 					items = append(items, node.TopicName)
 				}
 			}
-		case 2: // Третий слой — данные из StateManager
-			if g.SelectSegment < len(g.Units.Units) {
-				selectedUnit := g.Units.Units[g.SelectSegment]
-				if g.SelectSegment < len(selectedUnit.UnitNodes) {
-					selectedNode := selectedUnit.UnitNodes[g.SelectSegment]
+		case 2:
+			if g.SelectedSegments[0] < len(g.Units.Units) {
+				selectedUnit := g.Units.Units[g.SelectedSegments[0]]
+				if g.SelectedSegments[1] < len(selectedUnit.UnitNodes) {
+					selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
 					stateData := g.StateManager.GetState()[selectedNode.UUID]
                     
                     items = append(items, "New Item")
 
 					for key, value := range stateData {
 						items = append(items, fmt.Sprintf("%s: %s", key, value))
+                        fmt.Println(key)
 					}
+                    fmt.Println("")
+                    
 				}
 			}
 		}
 
-		// Рисуем сегменты текущего слоя
 		segmentAngle := 2 * math.Pi / float64(len(items))
 		layerOffset := float64(layerIndex) * 60
-		for i, _ := range items {
+		for i := range items {
 			angleStart := float64(i) * segmentAngle
 			angleEnd := angleStart + segmentAngle
 			clr := color.RGBA{176, 190, 197, 255}
-			if layerIndex == g.ActiveLayer && i == g.SelectSegment {
+			if i == g.SelectedSegments[layerIndex] {
 				clr = color.RGBA{255, 61, 0, 255}
 			}
 			graphics.DrawSegment(
@@ -189,16 +200,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				angleEnd-0.01,
 				clr,
 			)
-        }
-        if g.SelectSegment >= 0 {
+		}
+		if g.SelectedSegments[layerIndex] >= 0 && len(items) > g.SelectedSegments[layerIndex] {
             ebitenutil.DebugPrintAt(
-                screen,
-                items[g.SelectSegment],
-                int(cfg.ScreenWidth/2),
-                int(cfg.ScreenHeight/2) + 10 * layerIndex,
-            )
-        }
-
+				screen,
+				items[g.SelectedSegments[layerIndex]],
+				int(cfg.ScreenWidth/2),
+				int(cfg.ScreenHeight/2)+10*layerIndex,
+			)
+		}
 	}
 }
 
@@ -206,3 +216,4 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	cfg := config.GetConfig()
 	return cfg.ScreenWidth, cfg.ScreenHeight
 }
+

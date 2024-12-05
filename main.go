@@ -14,6 +14,7 @@ import (
 	"picker/internal/graphics"
 	"picker/internal/mqttclient"
 	"picker/internal/queries"
+	"picker/internal/state"
 
 	"github.com/getlantern/systray"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -145,9 +146,17 @@ func prepareGame(client *mqttclient.MqttClient) (*game.Game, error) {
 	config.UpdateConfig(func(cfg *config.Config) {
 		cfg.BlurredBackground = blurredBackground
 	})
+    stateAppManager, err := state.NewStateManager()
+    if err != nil {
+		return nil, fmt.Errorf("Ошибка создания state.json: %v", err)
+	}
 
-    return &game.Game{Client: client, Units: data, SelectSegment: -1, 
+    return &game.Game{
+        Client: client,
+        Units: data,
+        SelectedSegments: make([]int, 3), 
         KeyDownMap: make(map[ebiten.Key]bool),
+        StateManager: stateAppManager,
         ActiveLayer: 0,}, nil
 }
 
