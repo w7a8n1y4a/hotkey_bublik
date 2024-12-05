@@ -41,6 +41,7 @@ type Game struct {
     InputMode       InputMode
 	TextInput       string
 	OnTextInputDone func(string)
+    IsFirstWrite    bool
 }
 
 // LoadFont загружает шрифт из файла
@@ -103,13 +104,14 @@ func (g *Game) StartTextInput(callback func(string)) {
 	g.OnTextInputDone = callback
 }
 
-func (g *Game) AwaitTextInput() string {
+func (g *Game) AwaitTextInput(isFirstWrite bool) string {
     // Создаем канал для передачи текста
     resultChan := make(chan string)
     
     // Переключаем игру в режим ввода текста
     g.InputMode = ModeTextInput
     g.TextInput = ""
+    g.IsFirstWrite = isFirstWrite
     
     // Определяем колбэк для завершения ввода
     g.OnTextInputDone = func(input string) {
@@ -196,8 +198,8 @@ func (g *Game) Update() error {
                         if g.SelectedSegments[2] == 0 {
                             fmt.Println("This is Add button")
                             go func() {
-                                optionName := g.AwaitTextInput()
-                                optionContent := g.AwaitTextInput()
+                                optionName := g.AwaitTextInput(true)
+                                optionContent := g.AwaitTextInput(false)
                                 g.StateManager.AddOption(selectedNode.UUID, optionName, optionContent)
                             }()
                         } else {
@@ -348,8 +350,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
                     cfg.PickerCenterY,
                     cfg.RadiusInner+int(layerOffset),
                     cfg.RadiusInner+int(layerOffset)+cfg.ThickSegment,
-                    angleStart+0.012,
-                    angleEnd-0.012,
+                    angleStart+0.01 - 0.0012 * float64(layerIndex),
+                    angleEnd-0.01 + 0.0012 * float64(layerIndex),
                     clr,
                 )
             }
@@ -404,8 +406,51 @@ func (g *Game) Draw(screen *ebiten.Image) {
             }
         }
     case ModeTextInput:
-		// Отрисовка интерфейса ввода текста
-		ebitenutil.DebugPrint(screen, "Input Text: "+g.TextInput)
+        fontFace := LoadFont(24) // Укажите путь и размер шрифта
+        fontBigFace := LoadFont(32) // Укажите путь и размер шрифта
+        centerX := cfg.ScreenWidth/2
+        centerY := cfg.ScreenHeight/2
+        
+        var targetText string = "Write name Option"
+
+        if g.IsFirstWrite != true {
+            targetText = "Write UnitNode state"
+        }
+
+        DrawCenteredText(
+            screen,
+            fontBigFace,
+            targetText,
+            centerX,
+            centerY/3,
+            300,
+            4,
+            color.White,
+        )
+
+
+        DrawCenteredText(
+            screen,
+            fontFace,
+            "Enter text or <CTRL + V>",
+            centerX,
+            centerY/2,
+            300,
+            4,
+            color.White,
+        )
+
+        DrawCenteredText(
+            screen,
+            fontFace,
+            g.TextInput,
+            centerX,
+            centerY,
+            800,
+            4,
+            color.White,
+        )
+
 	}
 }
 
