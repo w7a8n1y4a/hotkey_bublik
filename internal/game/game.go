@@ -56,26 +56,28 @@ func (g *Game) Update() error {
 		g.SelectedSegments[g.ActiveLayer] = int(angle / segmentAngle) % currentLayerLength
 	}
 
-	g.handleKey(ebiten.KeyDelete, func() {
-		if g.ActiveLayer == 2 {
-			selectedUnitIdx := g.SelectedSegments[0]
-			selectedNodeIdx := g.SelectedSegments[1]
-			if selectedUnitIdx < len(g.Units.Units) {
-				selectedUnit := g.Units.Units[selectedUnitIdx]
-				if selectedNodeIdx < len(selectedUnit.UnitNodes) {
-					selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
-					stateData := g.StateManager.GetState()[selectedNode.UUID]
-					keys := make([]string, 0, len(stateData))
-					for key := range stateData {
-						keys = append(keys, key)
-					}
-					if g.SelectedSegments[2] < len(keys) {
-						delete(stateData, keys[g.SelectedSegments[2]])
-					}
-				}
-			}
-		}
-	})
+    g.handleKey(ebiten.KeyDelete, func() {
+        if g.ActiveLayer == 2 {
+            selectedUnitIdx := g.SelectedSegments[0]
+            selectedNodeIdx := g.SelectedSegments[1]
+            if selectedUnitIdx < len(g.Units.Units) {
+                selectedUnit := g.Units.Units[selectedUnitIdx]
+                if selectedNodeIdx < len(selectedUnit.UnitNodes) {
+                    selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
+                    stateData := g.StateManager.GetState()[selectedNode.UUID]
+                    if g.SelectedSegments[2] != 0 && g.SelectedSegments[2]-1 < len(stateData) {
+                        optionName := stateData[g.SelectedSegments[2]-1][0]
+                        // Используем uгRemoveOption для удаления опции
+                        err := g.StateManager.RemoveOption(selectedNode.UUID, optionName)
+                        if err != nil {
+                            fmt.Println("Error removing option:", err)
+                        }
+                    }
+                }
+            }
+        }
+    })
+
 
 	g.handleKey(ebiten.Key(ebiten.MouseButtonLeft), func() {
 		if g.ActiveLayer < 2 {
@@ -88,7 +90,6 @@ func (g *Game) Update() error {
 				selectedUnit := g.Units.Units[selectedUnitIdx]
 				if selectedNodeIdx < len(selectedUnit.UnitNodes) {
 					selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
-                    fmt.Println(selectedNode.TopicName)
 					stateData := g.StateManager.GetState()[selectedNode.UUID]
                     if g.SelectedSegments[2] == 0 {
                         fmt.Println("This is Add button")
@@ -101,7 +102,15 @@ func (g *Game) Update() error {
                     } else {
                         if stateData != nil{
                         
-                            fmt.Println(stateData)
+                            fmt.Println(stateData[g.SelectedSegments[2]-1])
+                            // TODO: change /pepeunit logic to adaptive without /pepeunit
+                            topicName := cfg.PEPEUNIT_URL + "/" + selectedNode.UUID + "/pepeunit"
+                            fmt.Println(topicName)
+                            err := g.Client.Publish(topicName, 0, false, stateData[g.SelectedSegments[2]-1][1]) 
+                            if err == nil {
+                                fmt.Println("Sendet")
+                            }
+
                         }
                         
                     }
@@ -173,10 +182,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 					for key, value := range stateData {
 						items = append(items, fmt.Sprintf("%s: %s", key, value))
-                        fmt.Println(key)
 					}
-                    fmt.Println("")
-                    
 				}
 			}
 		}
