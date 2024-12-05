@@ -350,8 +350,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
                     cfg.PickerCenterY,
                     cfg.RadiusInner+int(layerOffset),
                     cfg.RadiusInner+int(layerOffset)+cfg.ThickSegment,
-                    angleStart+0.01 - 0.0012 * float64(layerIndex),
-                    angleEnd-0.01 + 0.0012 * float64(layerIndex),
+                    angleStart+0.01 - 0.0015 * float64(layerIndex),
+                    angleEnd-0.01 + 0.0015 * float64(layerIndex),
                     clr,
                 )
             }
