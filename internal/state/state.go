@@ -82,10 +82,6 @@ func (sm *StateManager) RemoveOption(unitNodeUUID, optionName string) error {
 
 	delete(sm.state[unitNodeUUID], optionName)
 
-	if len(sm.state[unitNodeUUID]) == 0 {
-		delete(sm.state, unitNodeUUID) // Удаляем UnitNode, если у него больше нет опций
-	}
-
 	return sm.Save()
 }
 

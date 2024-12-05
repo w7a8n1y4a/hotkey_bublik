@@ -146,11 +146,7 @@ func prepareGame(client *mqttclient.MqttClient) (*game.Game, error) {
 		cfg.BlurredBackground = blurredBackground
 	})
 
-    return &game.Game{Client: client, Units: data, SelectSegment: -1, Layers: [][]string{
-            {"Layer 1 - Item 1", "Layer 1 - Item 2", "Layer 1 - Item 3"},
-            {"Layer 2 - Item 1", "Layer 2 - Item 2"},
-            {"Layer 3 - Item 1", "Add New"},
-        },
+    return &game.Game{Client: client, Units: data, SelectSegment: -1, 
         KeyDownMap: make(map[ebiten.Key]bool),
         ActiveLayer: 0,}, nil
 }

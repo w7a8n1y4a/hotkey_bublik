@@ -161,7 +161,14 @@ func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error) {
 
 	// Десериализация JSON
 	err = json.Unmarshal(body, &unitsByNodes)
-
+    for inc, item := range unitsByNodes.Units{
+    
+        fmt.Println(inc, item.Name)
+        for i, two := range item.UnitNodes{
+        
+            fmt.Println(i, two.TopicName)
+        }
+    }
 	return
 }
 
