@@ -27,8 +27,8 @@ type Config struct {
 	ScreenHeight      int            `json:"-"`
 	PickerCenterX     int            `json:"-"`
 	PickerCenterY     int            `json:"-"`
-	RadiusInner       int            `json:"-"`
-	ThickSegment      int            `json:"-"`
+	RadiusInner       int            `json:"RADIUS_INNER"`
+	ThickSegment      int            `json:"THICK_SEGMENT"`
 	BlurredBackground *ebiten.Image  `json:"-"`
     UnitUUID          string         `json:"-"`
 }
@@ -43,12 +43,6 @@ var config Config
 
 // Инициализация пакета
 func init() {
-	// Установка начальных значений для переменных приложения
-	config = Config{
-		RadiusInner:       150,
-		ThickSegment:      50,
-	}
-
     config.ScreenWidth, config.ScreenHeight = ebiten.Monitor().Size()
 	config.PickerCenterX, config.PickerCenterY = config.ScreenWidth/2, config.ScreenHeight/2
  
