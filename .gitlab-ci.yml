@@ -13,9 +13,18 @@ build:image:dev:
   rules:
     - if: $CI_COMMIT_TAG
       when: on_success
+  variables:
+    LINUX_AMD_LINK: "https://git.pepemoss.com/api/v4/projects/${CI_PROJECT_ID}/packages/generic/release/$CI_COMMIT_TAG/picker-linux-amd64"
   script:
     - docker build -t $DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG .
     - docker create --name temp_container $DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
     - docker cp temp_container:/output .
     - docker rm temp_container
-    - 'curl --header "PRIVATE-TOKEN: $CI_ACCESS_TOKEN" --upload-file ./output/picker-linux-amd64 "https://git.pepemoss.com/api/v4/projects/${CI_PROJECT_ID}/packages/generic/release/$CI_COMMIT_TAG/picker-linux-amd64"'
+    - 'curl --header "PRIVATE-TOKEN: $CI_ACCESS_TOKEN" --upload-file ./output/picker-linux-amd64 "$LINUX_AMD_LINK"'
+    - 'curl --request POST "https://git.pepemoss.com/api/v4/projects/281/releases" \
+           --header "PRIVATE-TOKEN: $CI_ACCESS_TOKEN" \
+           --data "name=Release Tag - $CI_ACCESS_TOKEN" \
+           --data "tag_name=$CI_ACCESS_TOKEN" \
+           --data "description=All Release builds for Tag - $CI_ACCESS_TOKEN" \
+           --data-urlencode "assets[links][][name]=Linux-Amd64-$CI_ACCESS_TOKEN" \
+           --data-urlencode "assets[links][][url]=$LINUX_AMD_LINK"'
