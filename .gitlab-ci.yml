@@ -20,5 +20,5 @@ build:image:dev:
     - docker rm temp_container
     - pwd
     - ls -la
-    - 'curl --header "PRIVATE-TOKEN: $GITLAB_ACCESS_TOKEN" --upload-file ./picker-linux-amd64 "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/somefile/$CI_COMMIT_TAG/picker-linux-amd64"'
+    - 'curl --header "PRIVATE-TOKEN: $GITLAB_ACCESS_TOKEN" --upload-file ./output/picker-linux-amd64 "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/somefile/$CI_COMMIT_TAG/picker-linux-amd64"'
 
