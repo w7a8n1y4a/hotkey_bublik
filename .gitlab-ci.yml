@@ -20,8 +20,9 @@ build:image:dev:
     - docker create --name temp_container $DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
     - docker cp temp_container:/output .
     - docker rm temp_container
+    - echo $LINUX_AMD_LINK
     - 'curl --header "PRIVATE-TOKEN: $CI_ACCESS_TOKEN" --upload-file ./output/picker-linux-amd64 "$LINUX_AMD_LINK"'
-    - 'curl --request POST "https://git.pepemoss.com/api/v4/projects/281/releases" \
+    - 'curl --request POST "https://git.pepemoss.com/api/v4/projects/${CI_PROJECT_ID}/releases" \
            --header "PRIVATE-TOKEN: $CI_ACCESS_TOKEN" \
            --data "name=Release Tag - $CI_COMMIT_TAG" \
            --data "tag_name=$CI_COMMIT_TAG" \
