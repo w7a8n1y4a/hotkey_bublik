@@ -22,7 +22,7 @@ WORKDIR /app
 COPY . .
 
 # Указываем имя выходного бинарного файла
-ENV APP_NAME=myapp
+ENV APP_NAME=picker
 
 # Список целевых платформ
 ENV TARGETS="linux/amd64"
@@ -35,19 +35,3 @@ RUN mkdir -p /output && \
         echo "Building for $GOOS/$GOARCH..."; \
         env GOOS=$GOOS GOARCH=$GOARCH go build -o /output/${APP_NAME}-$GOOS-$GOARCH . || exit 1; \
     done
-
-# Второй этап: минимальный образ для отправки файлов
-FROM curlimages/curl:latest
-
-# Копируем скомпилированные файлы из предыдущего этапа
-COPY --from=builder /output /output
-
-# Рабочая директория
-WORKDIR /output
-
-# Сценарий отправки файлов
-CMD for file in *; do \
-      echo "Uploading $file..."; \
-      curl -X POST -F "file=@$file" http://example.com/upload; \
-    done
-
