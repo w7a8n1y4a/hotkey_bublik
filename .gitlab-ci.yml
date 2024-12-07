@@ -24,7 +24,7 @@ build:image:dev:
       - output/
     expire_in: 1 week
 
-release:
+tag:release:dev:
   stage: release
   tags:
     - shell-build-runer
