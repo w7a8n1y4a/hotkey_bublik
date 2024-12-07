@@ -18,7 +18,8 @@ build:image:dev:
     - docker create --name temp_container $DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
     - docker cp temp_container:/output .
     - docker rm temp_container
-    - pwd
-    - ls -la
+    - echo $CI_API_V4_URL
+    - echo $CI_PROJECT_ID
+    - echo $CI_COMMIT_TAG
     - 'curl --header "PRIVATE-TOKEN: $GITLAB_ACCESS_TOKEN" --upload-file ./output/picker-linux-amd64 "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/somefile/$CI_COMMIT_TAG/picker-linux-amd64"'
 
