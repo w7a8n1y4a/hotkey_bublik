@@ -22,10 +22,4 @@ build:image:dev:
     - docker rm temp_container
     - echo $LINUX_AMD_LINK
     - curl --header "PRIVATE-TOKEN: $CI_ACCESS_TOKEN" --upload-file ./output/picker-linux-amd64 "$LINUX_AMD_LINK"
-    - curl --request POST "https://git.pepemoss.com/api/v4/projects/${CI_PROJECT_ID}/releases" \
-          --header "PRIVATE-TOKEN: $CI_ACCESS_TOKEN" \
-          --data "name=Release Tag - $CI_COMMIT_TAG" \
-          --data "tag_name=$CI_COMMIT_TAG" \
-          --data "description=All Release builds for Tag - $CI_COMMIT_TAG" \
-          --data-urlencode "assets[links][][name]=Linux-Amd64-$CI_COMMIT_TAG" \
-          --data-urlencode "assets[links][][url]=$LINUX_AMD_LINK"
+    - curl --request POST "https://git.pepemoss.com/api/v4/projects/${CI_PROJECT_ID}/releases" --header "PRIVATE-TOKEN: $CI_ACCESS_TOKEN" --data "name=Release Tag - $CI_COMMIT_TAG" --data "tag_name=$CI_COMMIT_TAG" --data "description=All Release builds for Tag - $CI_COMMIT_TAG" --data-urlencode "assets[links][][name]=Linux-Amd64-$CI_COMMIT_TAG" --data-urlencode "assets[links][][url]=$LINUX_AMD_LINK"
