@@ -2,6 +2,8 @@ package mqttclient
 
 import (
 	"fmt"
+    "encoding/json"
+    "runtime"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"log"
@@ -16,6 +18,29 @@ import (
 // MqttClient структура для управления MQTT клиентом
 type MqttClient struct {
 	client mqtt.Client
+}
+
+type UnitState struct {
+	Millis         int64   `json:"millis"`
+	MemFree        uint64  `json:"mem_free"`
+	MemAlloc       uint64  `json:"mem_alloc"`
+	Freq           float64 `json:"freq"`
+	CommitVersion  string  `json:"commit_version"`
+}
+
+func getUnitState() UnitState {
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+
+    cfg := config.GetConfig()
+
+	return UnitState{
+		Millis:        time.Now().UnixNano() / int64(time.Millisecond),
+		MemFree:       memStats.Frees,
+		MemAlloc:      memStats.Alloc,
+		Freq:          float64(runtime.NumCPU()), // Замените на реальную частоту CPU, если доступна
+		CommitVersion: cfg.COMMIT_VERSION,
+	}
 }
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -65,6 +90,26 @@ func (m *MqttClient) Publish(topic string, qos byte, retained bool, payload inte
 	return token.Error()
 }
 
+// publishState циклически публикует состояние
+func publishState(client *MqttClient, topic string, interval time.Duration) {
+	go func() {
+		for {
+			state := getUnitState()
+			payload, err := json.Marshal(state)
+			if err != nil {
+				log.Printf("Ошибка сериализации состояния: %v", err)
+				continue
+			}
+			err = client.Publish(topic, 0, false, payload)
+			if err != nil {
+				log.Printf("Ошибка публикации состояния: %v", err)
+			}
+            fmt.Println(state)
+			time.Sleep(interval * time.Second)
+		}
+	}()
+}
+
 // Subscribe подписывается на заданный топик и обрабатывает входящие сообщения
 func (m *MqttClient) Subscribe(topics []string, qos byte, callback func(client mqtt.Client, msg mqtt.Message)) error {
 	filters := make(map[string]byte)
@@ -97,7 +142,7 @@ func RunMqttClient() (*MqttClient, error) {
             err = schema.SaveSchema(newSchema)
 		}
 	}
-
+    
 	schemaData, err := schema.LoadSchema()
 	if err == nil {
 		// Подписка на топик
@@ -106,6 +151,10 @@ func RunMqttClient() (*MqttClient, error) {
 			log.Fatalf("Ошибка подписки на топик: %v", err)
 		}
 	}
+
+    // Запуск циклической отправки состояния
+	cfg := config.GetConfig()
+	publishState(client, schemaData.OutputBaseTopic["state/pepeunit"][0], time.Duration(cfg.STATE_SEND_INTERVAL))
 
 	return client, nil
 }

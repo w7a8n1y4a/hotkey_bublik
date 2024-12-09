@@ -21,6 +21,7 @@ type Config struct {
 	SECRET_KEY          string `json:"SECRET_KEY"`
 	PING_INTERVAL       int    `json:"PING_INTERVAL"`
 	STATE_SEND_INTERVAL int    `json:"STATE_SEND_INTERVAL"`
+    COMMIT_VERSION      string `json:"COMMIT_VERSION"`
 
 	// Внутренние переменные приложения
 	ScreenWidth       int            `json:"-"`
