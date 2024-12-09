@@ -213,9 +213,7 @@ func (g *Game) Update() error {
                                 if err == nil {
                                     fmt.Println("Sendet")
                                 }
-
                             }
-                            
                         }
                     }
                 }
