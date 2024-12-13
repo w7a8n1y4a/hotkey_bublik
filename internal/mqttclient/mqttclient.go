@@ -127,6 +127,11 @@ func (m *MqttClient) Disconnect(quiesce uint) {
 	m.client.Disconnect(quiesce)
 }
 
+type UpdateMessage struct {
+	NewCommitVersion      string `json:"NEW_COMMIT_VERSION"`
+	CompiledFirmwareLink string `json:"COMPILED_FIRMWARE_LINK"`
+}
+
 func RunMqttClient() (*MqttClient, error) {
 	// Создание MQTT клиента
 	client, err := New()
@@ -135,21 +140,40 @@ func RunMqttClient() (*MqttClient, error) {
 	}
 
 	// Обработчик входящих сообщений
-	messageHandler := func(client mqtt.Client, msg mqtt.Message) {
+	schemaUpdateHandler := func(client mqtt.Client, msg mqtt.Message) {
+
+        var update UpdateMessage
+
+        err := json.Unmarshal([]byte(msg.Payload()), &update)
+
+        fmt.Println(update, err)
+
+		fmt.Printf("Получено сообщение из топика %s: %s\n", msg.Topic(), msg.Payload())
+	}
+   
+	// Обработчик входящих сообщений
+	updateHandler := func(client mqtt.Client, msg mqtt.Message) {
 		fmt.Printf("Получено сообщение из топика %s: %s\n", msg.Topic(), msg.Payload())
 		newSchema, err := queries.GetCurrentSchema()
 		if err == nil {
             err = schema.SaveSchema(newSchema)
 		}
 	}
-    
+
+
 	schemaData, err := schema.LoadSchema()
 	if err == nil {
 		// Подписка на топик
-		err = client.Subscribe(schemaData.InputBaseTopic["schema_update/pepeunit"], 0, messageHandler)
+		err = client.Subscribe(schemaData.InputBaseTopic["schema_update/pepeunit"], 0, schemaUpdateHandler)
 		if err != nil {
 			log.Fatalf("Ошибка подписки на топик: %v", err)
 		}
+
+        err = client.Subscribe(schemaData.InputBaseTopic["update/pepeunit"], 0, updateHandler)
+		if err != nil {
+			log.Fatalf("Ошибка подписки на топик: %v", err)
+		}
+        
 	}
 
     // Запуск циклической отправки состояния
