@@ -8,6 +8,10 @@ import (
 	"picker/internal/config"
 	"picker/internal/schema"
 	"strings"
+    "archive/zip"
+    "io"
+    "os"
+    "path/filepath"
 )
 
 // Определение структур для десериализации JSON-ответа
@@ -208,3 +212,111 @@ func GetCurrentSchema() (newSchema schema.Schema, err error) {
 
 	return
 }
+
+func GetCurrentVersion() (path string, err error) {
+	cfg := config.GetConfig()
+
+	// Формируем параметры запроса
+	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/units/firmware/zip/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.UnitUUID)
+
+	// Создание HTTP-запроса
+	req, err := http.NewRequest("GET", baseURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Установка заголовков
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("x-auth-token", cfg.PEPEUNIT_TOKEN)
+
+	// Отправка запроса
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected response status: %d", resp.StatusCode)
+	}
+
+	// Создаем временный файл для сохранения архива
+	tempFile, err := os.CreateTemp("", "firmware_*.zip")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer os.Remove(tempFile.Name()) // Удаляем временный файл после использования
+
+	// Сохраняем содержимое ответа в файл
+	_, err = io.Copy(tempFile, resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to save response to file: %w", err)
+	}
+
+	// Закрываем файл для последующего чтения
+	tempFile.Close()
+
+	// Директория для распаковки
+	outputDir := "update_data"
+	if err := os.MkdirAll(outputDir, os.ModePerm); err != nil {
+		return "", fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Распаковка архива
+	err = unzip(tempFile.Name(), outputDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to unzip file: %w", err)
+	}
+
+	return outputDir, nil
+}
+
+func unzip(src string, dest string) error {
+	reader, err := zip.OpenReader(src)
+	if err != nil {
+		return fmt.Errorf("failed to open zip file: %w", err)
+	}
+	defer reader.Close()
+
+	for _, file := range reader.File {
+		filePath := filepath.Join(dest, file.Name)
+
+		// Проверяем, что путь не выходит за пределы целевой директории
+		if !filepath.HasPrefix(filePath, filepath.Clean(dest)+string(os.PathSeparator)) {
+			return fmt.Errorf("illegal file path: %s", filePath)
+		}
+
+		if file.FileInfo().IsDir() {
+			// Создаем директории
+			if err := os.MkdirAll(filePath, os.ModePerm); err != nil {
+				return fmt.Errorf("failed to create directory: %w", err)
+			}
+		} else {
+			// Распаковываем файлы
+			if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
+				return fmt.Errorf("failed to create directory for file: %w", err)
+			}
+
+			outFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
+			if err != nil {
+				return fmt.Errorf("failed to open file for writing: %w", err)
+			}
+
+			fileReader, err := file.Open()
+			if err != nil {
+				return fmt.Errorf("failed to open file inside zip: %w", err)
+			}
+
+			_, err = io.Copy(outFile, fileReader)
+			outFile.Close()
+			fileReader.Close()
+			if err != nil {
+				return fmt.Errorf("failed to write file: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+

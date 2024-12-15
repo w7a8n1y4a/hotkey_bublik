@@ -1,16 +1,20 @@
 package mqttclient
 
 import (
+	"encoding/json"
 	"fmt"
-    "encoding/json"
-    "runtime"
-
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	cp "github.com/otiai10/copy"
+	"io"
 	"log"
 	"math/rand"
+	"net/http"
+	"os"
+	"os/exec"
 	"picker/internal/config"
 	"picker/internal/queries"
 	"picker/internal/schema"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -21,18 +25,18 @@ type MqttClient struct {
 }
 
 type UnitState struct {
-	Millis         int64   `json:"millis"`
-	MemFree        uint64  `json:"mem_free"`
-	MemAlloc       uint64  `json:"mem_alloc"`
-	Freq           float64 `json:"freq"`
-	CommitVersion  string  `json:"commit_version"`
+	Millis        int64   `json:"millis"`
+	MemFree       uint64  `json:"mem_free"`
+	MemAlloc      uint64  `json:"mem_alloc"`
+	Freq          float64 `json:"freq"`
+	CommitVersion string  `json:"commit_version"`
 }
 
 func getUnitState() UnitState {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 
-    cfg := config.GetConfig()
+	cfg := config.GetConfig()
 
 	return UnitState{
 		Millis:        time.Now().UnixNano() / int64(time.Millisecond),
@@ -104,7 +108,7 @@ func publishState(client *MqttClient, topic string, interval time.Duration) {
 			if err != nil {
 				log.Printf("Ошибка публикации состояния: %v", err)
 			}
-            fmt.Println(state)
+			fmt.Println(state)
 			time.Sleep(interval * time.Second)
 		}
 	}()
@@ -128,7 +132,7 @@ func (m *MqttClient) Disconnect(quiesce uint) {
 }
 
 type UpdateMessage struct {
-	NewCommitVersion      string `json:"NEW_COMMIT_VERSION"`
+	NewCommitVersion     string `json:"NEW_COMMIT_VERSION"`
 	CompiledFirmwareLink string `json:"COMPILED_FIRMWARE_LINK"`
 }
 
@@ -140,26 +144,50 @@ func RunMqttClient() (*MqttClient, error) {
 	}
 
 	// Обработчик входящих сообщений
-	schemaUpdateHandler := func(client mqtt.Client, msg mqtt.Message) {
+	updateHandler := func(client mqtt.Client, msg mqtt.Message) {
 
-        var update UpdateMessage
+		var update UpdateMessage
 
-        err := json.Unmarshal([]byte(msg.Payload()), &update)
+		err := json.Unmarshal([]byte(msg.Payload()), &update)
 
-        fmt.Println(update, err)
+		cfg := config.GetConfig()
+		fmt.Println(cfg.COMMIT_VERSION, update.NewCommitVersion)
+		if update.NewCommitVersion != cfg.COMMIT_VERSION {
+
+			path, err := queries.GetCurrentVersion()
+
+			fmt.Println(path, err)
+
+			// Копируем файлы с перезаписью
+			err = cp.Copy(path, "./")
+			if err != nil {
+				fmt.Printf("Ошибка при копировании: %v\n", err)
+				return
+			}
+
+            	// Удаляем пустую директорию
+            err = os.RemoveAll(path)
+            if err != nil {
+                fmt.Println("Ошибка удаления:", err)
+                return
+            }
+
+			updateApplication(update.CompiledFirmwareLink, update.NewCommitVersion)
+		}
+
+		fmt.Println(update, err)
 
 		fmt.Printf("Получено сообщение из топика %s: %s\n", msg.Topic(), msg.Payload())
 	}
-   
+
 	// Обработчик входящих сообщений
-	updateHandler := func(client mqtt.Client, msg mqtt.Message) {
+	schemaUpdateHandler := func(client mqtt.Client, msg mqtt.Message) {
 		fmt.Printf("Получено сообщение из топика %s: %s\n", msg.Topic(), msg.Payload())
 		newSchema, err := queries.GetCurrentSchema()
 		if err == nil {
-            err = schema.SaveSchema(newSchema)
+			err = schema.SaveSchema(newSchema)
 		}
 	}
-
 
 	schemaData, err := schema.LoadSchema()
 	if err == nil {
@@ -169,18 +197,82 @@ func RunMqttClient() (*MqttClient, error) {
 			log.Fatalf("Ошибка подписки на топик: %v", err)
 		}
 
-        err = client.Subscribe(schemaData.InputBaseTopic["update/pepeunit"], 0, updateHandler)
+		err = client.Subscribe(schemaData.InputBaseTopic["update/pepeunit"], 0, updateHandler)
 		if err != nil {
 			log.Fatalf("Ошибка подписки на топик: %v", err)
 		}
-        
+
 	}
 
-    // Запуск циклической отправки состояния
+	// Запуск циклической отправки состояния
 	cfg := config.GetConfig()
 	publishState(client, schemaData.OutputBaseTopic["state/pepeunit"][0], time.Duration(cfg.STATE_SEND_INTERVAL))
 
 	return client, nil
+}
+
+func updateApplication(url, newVersion string) {
+	newBinary := "new_version" // Временное имя для нового бинарного файла
+	err := downloadFile(newBinary, url)
+	if err != nil {
+		fmt.Println("Error downloading file:", err)
+		return
+	}
+
+	err = os.Chmod(newBinary, 0755) // Сделать файл исполняемым
+	if err != nil {
+		fmt.Println("Error setting permissions:", err)
+		return
+	}
+
+	// Замена текущего исполняемого файла
+	currentBinary, err := os.Executable()
+	if err != nil {
+		fmt.Println("Error getting current executable:", err)
+		return
+	}
+
+	err = os.Rename(newBinary, currentBinary)
+	if err != nil {
+		fmt.Println("Error replacing executable:", err)
+		return
+	}
+
+	fmt.Println("Update complete, restarting application...")
+	restartApplication()
+}
+
+func downloadFile(filepath string, url string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	return err
+}
+
+func restartApplication() {
+	execPath, err := os.Executable()
+	if err != nil {
+		fmt.Println("Error getting executable path:", err)
+		return
+	}
+
+	err = exec.Command(execPath).Start()
+	if err != nil {
+		fmt.Println("Error restarting application:", err)
+		return
+	}
+
+	os.Exit(0) // Завершить текущий процесс
 }
 
 // IsConnected проверяет, подключен ли клиент
