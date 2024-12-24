@@ -273,21 +273,15 @@ func GetStateStorage() (state string, err error) {
 	// Формируем параметры запроса
 	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/units/get_state_storage/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.UnitUUID)
     
-    fmt.Println(baseURL)
-
 	req, err := http.NewRequest("GET", baseURL, nil)
 
 	// Установка заголовков
 	req.Header.Set("accept", "application/json")
 	req.Header.Set("x-auth-token", cfg.PEPEUNIT_TOKEN)
     
-    fmt.Println(req)
-
 	// Отправка запроса
 	client := &http.Client{}
 	resp, err := client.Do(req)
-
-    fmt.Println(resp)
 
 	if err != nil {
 		return

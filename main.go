@@ -148,7 +148,7 @@ func prepareGame(client *mqttclient.MqttClient) (*game.Game, error) {
 	})
     stateAppManager, err := state.NewStateManager()
     if err != nil {
-		return nil, fmt.Errorf("Ошибка создания state.json: %v", err)
+		return nil, fmt.Errorf("Ошибка полученя state: %v", err)
 	}
 
     return &game.Game{
