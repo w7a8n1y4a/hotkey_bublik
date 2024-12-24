@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"picker/internal/config"
 	"picker/internal/schema"
+    "bytes"
 	"strings"
     "archive/zip"
     "io"
@@ -52,6 +53,10 @@ type UnitsByNodesResponse struct {
 type UnitNodesResponse struct {
    	Count int            `json:"count"`
 	UnitNodes []UnitNode `json:"unit_nodes"` 
+}
+
+type StateRequest struct {
+	State string `json:"state"`
 }
 
 func extractUUIDs(urls []string) []string {
@@ -190,7 +195,8 @@ func GetCurrentSchema() (newSchema schema.Schema, err error) {
 	req, err := http.NewRequest("GET", fullURL, nil)
 
 	// Установка заголовков
-	req.Header.Set("accept", "application/json")
+	req.Header.Set("accept", "*/*")
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-auth-token", cfg.PEPEUNIT_TOKEN)
 
 	// Отправка запроса
@@ -209,6 +215,89 @@ func GetCurrentSchema() (newSchema schema.Schema, err error) {
 
 	// Десериализация JSON
 	err = json.Unmarshal([]byte(rawJSON[1:len(rawJSON)-1]), &newSchema)
+
+	return
+}
+
+func SetStateStorage(state string) (err error) {
+
+	cfg := config.GetConfig()
+
+	// Формируем параметры запроса
+	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/units/set_state_storage/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.UnitUUID)
+    
+    // Создание тела запроса
+	requestBody := StateRequest{
+		State: state,
+	}
+	requestBodyJSON, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", baseURL, bytes.NewBuffer(requestBodyJSON))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+    }
+	// Установка заголовков
+	req.Header.Set("accept", "*/*")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-auth-token", cfg.PEPEUNIT_TOKEN)
+
+	// Отправка запроса
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+    // Чтение ответа
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(body))
+	}
+
+	fmt.Printf("Response: %s\n", string(body))
+	return nil 
+}
+
+func GetStateStorage() (state string, err error) {
+
+	cfg := config.GetConfig()
+
+	// Формируем параметры запроса
+	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/units/get_state_storage/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.UnitUUID)
+    
+    fmt.Println(baseURL)
+
+	req, err := http.NewRequest("GET", baseURL, nil)
+
+	// Установка заголовков
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("x-auth-token", cfg.PEPEUNIT_TOKEN)
+    
+    fmt.Println(req)
+
+	// Отправка запроса
+	client := &http.Client{}
+	resp, err := client.Do(req)
+
+    fmt.Println(resp)
+
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	// Чтение ответа
+	body, err := ioutil.ReadAll(resp.Body)
+
+	state = string(body)
 
 	return
 }
