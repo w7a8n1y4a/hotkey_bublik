@@ -4,50 +4,39 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"sync"
+	"picker/internal/queries"
+    "strconv"
 )
 
 type StateManager struct {
-	filePath string
-	mutex    sync.Mutex
-	state    map[string][][]string
+	mutex sync.Mutex
+	state map[string][][]string
 }
 
-// NewStateManager создает экземпляр StateManager и загружает существующее состояние из файла, если он существует.
+// NewStateManager создает экземпляр StateManager и загружает существующее состояние из удаленного хранилища, если оно существует.
 func NewStateManager() (*StateManager, error) {
-	filePath := "state.json"
-
 	manager := &StateManager{
-		filePath: filePath,
-		state:    make(map[string][][]string),
+		state: make(map[string][][]string),
 	}
 
-	if _, err := os.Stat(filePath); errors.Is(err, os.ErrNotExist) {
-		// Создаем новый пустой файл
-		emptyState := make(map[string][][]string)
-		data, err := json.MarshalIndent(emptyState, "", "  ")
-		if err != nil {
-			return nil, err
-		}
-
-		if err := ioutil.WriteFile(filePath, data, 0644); err != nil {
-			return nil, err
-		}
-
-		return manager, nil // Возвращаем менеджер с пустым состоянием
-	}
-
-	// Загрузка состояния из файла
-	data, err := ioutil.ReadFile(filePath)
+	// Получаем состояние из удаленного хранилища
+	serializedState, err := queries.GetStateStorage()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to retrieve state from storage: %w", err)
 	}
+    
+	if serializedState == "\"\"" {
+		// Если состояние пустое, возвращаем менеджер с пустым состоянием
+		return manager, nil
+	}
+    
+    s, _ := strconv.Unquote(string(serializedState))
 
-	err = json.Unmarshal(data, &manager.state)
+	// Десериализуем состояние
+	err = json.Unmarshal([]byte(s), &manager.state)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal state: %w", err)
 	}
 
 	return manager, nil
@@ -79,6 +68,7 @@ func (sm *StateManager) AddOption(unitNodeUUID, optionName, optionValue string) 
 // RemoveOption удаляет указанную опцию из UnitNode с указанным UUID.
 func (sm *StateManager) RemoveOption(unitNodeUUID, optionName string) error {
 	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
 
 	if _, exists := sm.state[unitNodeUUID]; !exists {
 		return errors.New("unit node UUID not found")
@@ -101,26 +91,20 @@ func (sm *StateManager) RemoveOption(unitNodeUUID, optionName string) error {
 	}
 
 	sm.state[unitNodeUUID] = newOptions
-    
-    sm.mutex.Unlock()
-
-    fmt.Println("Success remove option")
 
 	return sm.Save()
 }
 
-// Save сохраняет текущее состояние в файл.
+// Save сохраняет текущее состояние в удаленное хранилище.
 func (sm *StateManager) Save() error {
-	data, err := json.MarshalIndent(sm.state, "", "  ")
+	data, err := json.Marshal(sm.state)
 	if err != nil {
-		fmt.Println("Error marshaling state:", err)
-		return err
+		return fmt.Errorf("failed to marshal state: %w", err)
 	}
 
-	err = ioutil.WriteFile(sm.filePath, data, 0644)
+	err = queries.SetStateStorage(string(data))
 	if err != nil {
-		fmt.Println("Error writing to file:", err)
-		return err
+		return fmt.Errorf("failed to save state to storage: %w", err)
 	}
 
 	fmt.Println("State saved successfully")
