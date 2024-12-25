@@ -219,6 +219,39 @@ func GetCurrentSchema() (newSchema schema.Schema, err error) {
 	return
 }
 
+func GetCurrentEnv() (env string, err error) {
+
+	cfg := config.GetConfig()
+
+	// Формируем параметры запроса
+	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/units/env/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.UnitUUID)
+
+	// f Создание HTTP-запроса
+	req, err := http.NewRequest("GET", baseURL, nil)
+
+    // Установка заголовков
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("x-auth-token", cfg.PEPEUNIT_TOKEN)
+    
+	// Отправка запроса
+	client := &http.Client{}
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	// Чтение ответа
+	body, err := ioutil.ReadAll(resp.Body)
+
+    env = string(body)
+
+	return
+
+}
+
+
 func SetStateStorage(state string) (err error) {
 
 	cfg := config.GetConfig()

@@ -1,7 +1,8 @@
 {
     "input_base_topic": [
         "update/pepeunit",
-        "schema_update/pepeunit"
+        "schema_update/pepeunit",
+        "env_update/pepeunit"
     ],
     "output_base_topic": [
         "state/pepeunit"

@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
+    "strconv"
 )
 
 // MqttClient структура для управления MQTT клиентом
@@ -187,7 +188,29 @@ func RunMqttClient() (*MqttClient, error) {
 		if err == nil {
 			err = schema.SaveSchema(newSchema)
 		}
+        restartApplication()
 	}
+    
+    // Обработчик входящих сообщений
+	envUpdateHandler := func(client mqtt.Client, msg mqtt.Message) {
+		fmt.Printf("Получено сообщение из топика %s: %s\n", msg.Topic(), msg.Payload())
+        newEnv, err := queries.GetCurrentEnv()
+		if err == nil {
+            
+            s, _ := strconv.Unquote(string(newEnv))
+            if err != nil {
+                fmt.Println("ошибка сериализации JSON: %w", err)
+            }
+
+            if err := os.WriteFile("env.json", []byte(s), 0644); err != nil {
+                fmt.Println("ошибка записи в файл: %w", err)
+            }
+
+            fmt.Println("Новый env успешно записан")
+		}
+        restartApplication()
+	}
+
 
 	schemaData, err := schema.LoadSchema()
 	if err == nil {
@@ -198,6 +221,11 @@ func RunMqttClient() (*MqttClient, error) {
 		}
 
 		err = client.Subscribe(schemaData.InputBaseTopic["update/pepeunit"], 0, updateHandler)
+		if err != nil {
+			log.Fatalf("Ошибка подписки на топик: %v", err)
+		}
+        
+        err = client.Subscribe(schemaData.InputBaseTopic["env_update/pepeunit"], 0, envUpdateHandler)
 		if err != nil {
 			log.Fatalf("Ошибка подписки на топик: %v", err)
 		}
