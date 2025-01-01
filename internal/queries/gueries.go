@@ -136,6 +136,7 @@ func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error) {
 		"order_by_unit_name=asc",
 		"order_by_create_date=desc",
 		"order_by_last_update=desc",
+		"unit_node_type=Output",
 		"unit_node_type=Input",
 	}
 
