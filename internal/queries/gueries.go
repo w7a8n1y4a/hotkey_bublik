@@ -141,6 +141,10 @@ func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error) {
 	}
 
     unitNodes, err := GetInputByOutput()
+    
+    if unitNodes.Count == 0 {
+        return UnitsByNodesResponse{}, fmt.Errorf("No edges found")
+    }
 
 	// Добавляем массив unitNodeUUIDs в параметры
 	for _, item := range unitNodes.UnitNodes {
