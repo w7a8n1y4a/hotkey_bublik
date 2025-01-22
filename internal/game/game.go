@@ -299,7 +299,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		ebitenutil.DebugPrint(screen, "Загрузка размытого фона...")
 		return
 	}
-	screen.DrawImage(cfg.BlurredBackground, nil)
+	screen.DrawImage(ebiten.NewImageFromImage(cfg.BlurredBackground), nil)
 
 	switch g.InputMode {
 	case ModeGame:

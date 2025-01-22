@@ -6,6 +6,7 @@ import (
 	"os"
     "encoding/base64"
 	"strings"
+    "image"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -30,7 +31,7 @@ type Config struct {
 	PickerCenterY     int            `json:"-"`
 	RadiusInner       int            `json:"RADIUS_INNER"`
 	ThickSegment      int            `json:"THICK_SEGMENT"`
-	BlurredBackground *ebiten.Image  `json:"-"`
+	BlurredBackground *image.NRGBA  `json:"-"`
     UnitUUID          string         `json:"-"`
 }
 

@@ -2,13 +2,12 @@ package graphics
 
 import (
 	"log"
-
+    "image"
 	"github.com/disintegration/imaging"
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/kbinani/screenshot"
 )
 
-func BlurScreenshot() *ebiten.Image {
+func BlurScreenshot() *image.NRGBA {
 	bounds := screenshot.GetDisplayBounds(0)
 	img, err := screenshot.CaptureRect(bounds)
 	if err != nil {
@@ -16,7 +15,6 @@ func BlurScreenshot() *ebiten.Image {
 	}
 
 	blurredImg := imaging.Blur(img, 10.0)
-	ebitenImg := ebiten.NewImageFromImage(blurredImg)
-	return ebitenImg
+	return blurredImg
 }
 

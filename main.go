@@ -22,16 +22,11 @@ import (
 	"golang.design/x/hotkey/mainthread"
 )
 
-// Global variables
-var gameRunning bool                // Flag to track the game state
-var blurredBackground *ebiten.Image // To store the blurred background
-
 //go:embed assets/icons/64.png
 var iconData []byte
 
 func main() {
-
-    client, err := mqttclient.RunMqttClient()
+	client, err := mqttclient.RunMqttClient()
 	fmt.Println(client, err)
 
 	// Initialize the hotkey listener in the main thread
@@ -45,9 +40,6 @@ func main() {
 		log.Fatal("Ошибка загрузки иконки:", err)
 	}
 
-	// Load the blurred background
-	blurredBackground = graphics.BlurScreenshot()
-
 	// Start the system tray app
 	systray.Run(func() {
 		onReady(icon, client)
@@ -58,29 +50,26 @@ func main() {
 func registerGlobalHotkey(client *mqttclient.MqttClient) {
 	hk := hotkey.New([]hotkey.Modifier{hotkey.ModCtrl, hotkey.ModShift}, hotkey.KeyH)
 
-	err := hk.Unregister()
-	if err != nil {
-		log.Printf("hotkey: failed to unregister previous hotkey: %v", err)
-	}
-
-	err = hk.Register()
+	err := hk.Register()
 	if err != nil {
 		log.Fatalf("hotkey: failed to register hotkey: %v", err)
 		return
 	}
 
 	log.Printf("Global hotkey: %v is registered\n", hk)
+
 	// Listen for the hotkey press in a separate goroutine
 	go func() {
-		<-hk.Keydown()
-		log.Printf("Global hotkey: %v is down\n", hk)
-		// Launch the game when hotkey is pressed
-		if !gameRunning {
-			gameRunning = true
-			go startGame(client)
+		for {
+			select {
+			case <-hk.Keydown():
+				log.Printf("Global hotkey: %v is down\n", hk)
+				// Launch the game when hotkey is pressed
+				go startGame(client)
+			case <-hk.Keyup():
+				log.Printf("Global hotkey: %v is up\n", hk)
+			}
 		}
-		<-hk.Keyup()
-		log.Printf("Global hotkey: %v is up\n", hk)
 	}()
 }
 
@@ -97,12 +86,7 @@ func onReady(icon []byte, client *mqttclient.MqttClient) {
 		for {
 			select {
 			case <-mButton.ClickedCh:
-				if !gameRunning {
-					gameRunning = true
-					go startGame(client)
-				} else {
-					log.Println("Игра уже запущена.")
-				}
+				go startGame(client)
 			}
 		}
 	}()
@@ -144,20 +128,21 @@ func prepareGame(client *mqttclient.MqttClient) (*game.Game, error) {
 
 	// Update the game configuration
 	config.UpdateConfig(func(cfg *config.Config) {
-		cfg.BlurredBackground = blurredBackground
+		cfg.BlurredBackground = graphics.BlurScreenshot()
 	})
-    stateAppManager, err := state.NewStateManager()
-    if err != nil {
+	stateAppManager, err := state.NewStateManager()
+	if err != nil {
 		return nil, fmt.Errorf("Ошибка полученя state: %v", err)
 	}
 
-    return &game.Game{
-        Client: client,
-        Units: data,
-        SelectedSegments: make([]int, 3), 
-        KeyDownMap: make(map[ebiten.Key]bool),
-        StateManager: stateAppManager,
-        ActiveLayer: 0,}, nil
+	return &game.Game{
+		Client:           client,
+		Units:            data,
+		SelectedSegments: make([]int, 3),
+		KeyDownMap:       make(map[ebiten.Key]bool),
+		StateManager:     stateAppManager,
+		ActiveLayer:      0,
+	}, nil
 }
 
 // Function to start the game
@@ -178,9 +163,7 @@ func startGame(client *mqttclient.MqttClient) {
 		log.Printf("Ошибка запуска игры: %v", err)
 	}
 
-	// After game finishes, reset the flag
-	gameRunning = false
-	restartApplication()
+	//restartApplication()
 }
 
 // Function to restart the application
