@@ -163,7 +163,7 @@ func startGame(client *mqttclient.MqttClient) {
 		log.Printf("Ошибка запуска игры: %v", err)
 	}
 
-	//restartApplication()
+	restartApplication()
 }
 
 // Function to restart the application
