@@ -75,7 +75,7 @@ func GetInputByOutput() (unitNodes UnitNodesResponse, err error) {
 	cfg := config.GetConfig()
 
 	// Формируем параметры запроса
-	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/unit_nodes", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL)
+	baseURL := fmt.Sprintf("%s://%s%s%s/unit_nodes", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX)
     
     schemaData, err := schema.LoadSchema()
     
@@ -125,7 +125,7 @@ func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error) {
 	cfg := config.GetConfig()
 
 	// Формируем параметры запроса
-	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/units", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL)
+	baseURL := fmt.Sprintf("%s://%s%s%s/units", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX)
 
 	// Добавляем параметры в URL
 	params := []string{
@@ -190,7 +190,7 @@ func GetCurrentSchema() (newSchema schema.Schema, err error) {
 	cfg := config.GetConfig()
 
 	// Формируем параметры запроса
-	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/units/get_current_schema/", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL)
+	baseURL := fmt.Sprintf("%s://%s%s%s/units/get_current_schema/", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX)
 
 	// Собираем полный URL
 	fullURL := baseURL + cfg.UnitUUID
@@ -228,7 +228,7 @@ func GetCurrentEnv() (env string, err error) {
 	cfg := config.GetConfig()
 
 	// Формируем параметры запроса
-	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/units/env/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.UnitUUID)
+	baseURL := fmt.Sprintf("%s://%s%s%s/units/env/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX, cfg.UnitUUID)
 
 	// f Создание HTTP-запроса
 	req, err := http.NewRequest("GET", baseURL, nil)
@@ -261,7 +261,7 @@ func SetStateStorage(state string) (err error) {
 	cfg := config.GetConfig()
 
 	// Формируем параметры запроса
-	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/units/set_state_storage/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.UnitUUID)
+	baseURL := fmt.Sprintf("%s://%s%s%s/units/set_state_storage/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX, cfg.UnitUUID)
     
     // Создание тела запроса
 	requestBody := StateRequest{
@@ -308,7 +308,7 @@ func GetStateStorage() (state string, err error) {
 	cfg := config.GetConfig()
 
 	// Формируем параметры запроса
-	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/units/get_state_storage/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.UnitUUID)
+	baseURL := fmt.Sprintf("%s://%s%s%s/units/get_state_storage/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX, cfg.UnitUUID)
     
 	req, err := http.NewRequest("GET", baseURL, nil)
 
@@ -337,7 +337,7 @@ func GetCurrentVersion() (path string, err error) {
 	cfg := config.GetConfig()
 
 	// Формируем параметры запроса
-	baseURL := fmt.Sprintf("%s://%s/pepeunit/api/v1/units/firmware/zip/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.UnitUUID)
+	baseURL := fmt.Sprintf("%s://%s%s%s/v1/units/firmware/zip/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX, cfg.UnitUUID)
 
 	// Создание HTTP-запроса
 	req, err := http.NewRequest("GET", baseURL, nil)

@@ -66,7 +66,7 @@ func New() (*MqttClient, error) {
 	cfg := config.GetConfig()
 
 	opts := mqtt.NewClientOptions()
-	opts.AddBroker(fmt.Sprintf("tcp://%s:%d", cfg.MQTT_URL, 1883))
+	opts.AddBroker(fmt.Sprintf("tcp://%s:%d", cfg.MQTT_URL, cfg.MQTT_PORT))
 	opts.SetClientID(cfg.UnitUUID)
 	opts.SetUsername(cfg.PEPEUNIT_TOKEN)
 	opts.SetPassword("putblic")

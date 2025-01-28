@@ -15,8 +15,11 @@ import (
 type Config struct {
 	// Переменные из env.json
 	PEPEUNIT_URL        string `json:"PEPEUNIT_URL"`
+	PEPEUNIT_APP_PREFIX string `json:"PEPEUNIT_APP_PREFIX"`
+	PEPEUNIT_API_ACTUAL_PREFIX string `json:"PEPEUNIT_API_ACTUAL_PREFIX"`
 	HTTP_TYPE           string `json:"HTTP_TYPE"`
 	MQTT_URL            string `json:"MQTT_URL"`
+	MQTT_PORT           int    `json:"MQTT_PORT"`
 	PEPEUNIT_TOKEN      string `json:"PEPEUNIT_TOKEN"`
 	SYNC_ENCRYPT_KEY    string `json:"SYNC_ENCRYPT_KEY"`
 	SECRET_KEY          string `json:"SECRET_KEY"`
