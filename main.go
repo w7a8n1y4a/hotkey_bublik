@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"context"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/png"
@@ -12,26 +14,44 @@ import (
 	"picker/internal/config"
 	"picker/internal/game"
 	"picker/internal/graphics"
-	"picker/internal/mqttclient"
 	"picker/internal/queries"
-	"picker/internal/state"
 
 	"github.com/getlantern/systray"
 	"github.com/hajimehoshi/ebiten/v2"
+	pepeunit "github.com/w7a8n1y4a/pepeunit_go_client"
 	"golang.design/x/hotkey"
 	"golang.design/x/hotkey/mainthread"
+	"time"
 )
 
 //go:embed assets/icons/64.png
 var iconData []byte
 
 func main() {
-	client, err := mqttclient.RunMqttClient()
-	fmt.Println(client, err)
+	pepeClient, err := pepeunit.NewPepeunitClient(pepeunit.PepeunitClientConfig{
+		EnvFilePath:       "env.json",
+		SchemaFilePath:    "schema.json",
+		LogFilePath:       "log.json",
+		EnableMQTT:        true,
+		EnableREST:        true,
+		CycleSpeed:        100 * time.Millisecond,
+		RestartMode:       pepeunit.RestartModeRestartExec,
+	})
+	if err != nil {
+		log.Fatalf("init pepeunit client failed: %v", err)
+	}
+
+	ctx := context.Background()
+	if pepeClient.GetMQTTClient() != nil {
+		if err := pepeClient.GetMQTTClient().Connect(ctx); err != nil {
+			log.Fatalf("mqtt connect failed: %v", err)
+		}
+	}
+	go pepeClient.RunMainCycle(ctx, nil)
 
 	// Initialize the hotkey listener in the main thread
 	mainthread.Init(func() {
-		registerGlobalHotkey(client)
+		registerGlobalHotkey(pepeClient)
 	})
 
 	// Prepare icon and other resources
@@ -42,12 +62,12 @@ func main() {
 
 	// Start the system tray app
 	systray.Run(func() {
-		onReady(icon, client)
+		onReady(icon, pepeClient)
 	}, onExit)
 }
 
 // Register the global hotkey (Ctrl + Shift + H)
-func registerGlobalHotkey(client *mqttclient.MqttClient) {
+func registerGlobalHotkey(client *pepeunit.PepeunitClient) {
 	hk := hotkey.New([]hotkey.Modifier{hotkey.ModCtrl, hotkey.ModShift}, hotkey.KeyH)
 
 	err := hk.Register()
@@ -74,7 +94,7 @@ func registerGlobalHotkey(client *mqttclient.MqttClient) {
 }
 
 // Function for handling tray menu and actions
-func onReady(icon []byte, client *mqttclient.MqttClient) {
+func onReady(icon []byte, client *pepeunit.PepeunitClient) {
 	// Set tray icon and menu options
 	systray.SetIcon(icon)
 	systray.SetTitle("Tray Example")
@@ -120,7 +140,7 @@ func loadIcon(data []byte) ([]byte, error) {
 }
 
 // Function to prepare the game setup
-func prepareGame(client *mqttclient.MqttClient) (*game.Game, error) {
+func prepareGame(client *pepeunit.PepeunitClient) (*game.Game, error) {
 	data, err := queries.GetUnitsByNodesQuery()
 	if err != nil {
 		return nil, fmt.Errorf("Ошибка при получении данных: %v", err)
@@ -130,23 +150,36 @@ func prepareGame(client *mqttclient.MqttClient) (*game.Game, error) {
 	config.UpdateConfig(func(cfg *config.Config) {
 		cfg.BlurredBackground = graphics.BlurScreenshot()
 	})
-	stateAppManager, err := state.NewStateManager()
-	if err != nil {
-		return nil, fmt.Errorf("Ошибка полученя state: %v", err)
+	// Load state from REST storage via pepeunit client
+	stateData := make(map[string][][]string)
+	if client.GetRESTClient() != nil {
+		ctx := context.Background()
+		raw, err := client.GetRESTClient().GetStateStorage(ctx, "")
+		if err == nil && raw != nil {
+			var stateStr string
+			if s, ok := raw["state"].(string); ok {
+				stateStr = s
+			} else if s, ok := raw["State"].(string); ok {
+				stateStr = s
+			}
+			if stateStr != "" && stateStr != "\"\"" {
+				_ = json.Unmarshal([]byte(stateStr), &stateData)
+			}
+		}
 	}
 
 	return &game.Game{
-		Client:           client,
+		PepeClient:       client,
 		Units:            data,
 		SelectedSegments: make([]int, 3),
 		KeyDownMap:       make(map[ebiten.Key]bool),
-		StateManager:     stateAppManager,
+		StateData:        stateData,
 		ActiveLayer:      0,
 	}, nil
 }
 
 // Function to start the game
-func startGame(client *mqttclient.MqttClient) {
+func startGame(client *pepeunit.PepeunitClient) {
 	// Prepare the game
 	gameInstance, err := prepareGame(client)
 	if err != nil {

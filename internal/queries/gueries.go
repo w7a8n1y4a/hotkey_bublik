@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"picker/internal/config"
-	"picker/internal/schema"
     "bytes"
 	"strings"
     "archive/zip"
@@ -16,6 +15,25 @@ import (
 )
 
 // Определение структур для десериализации JSON-ответа
+
+type schemaFile struct {
+	InputBaseTopic  map[string][]string `json:"input_base_topic"`
+	OutputBaseTopic map[string][]string `json:"output_base_topic"`
+	InputTopic      map[string][]string `json:"input_topic"`
+	OutputTopic     map[string][]string `json:"output_topic"`
+}
+
+func loadSchema() (*schemaFile, error) {
+	b, err := os.ReadFile("schema.json")
+	if err != nil {
+		return nil, err
+	}
+	var s schemaFile
+	if err := json.Unmarshal(b, &s); err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
 
 type UnitNode struct {
 	UUID              string `json:"uuid"`
@@ -77,7 +95,7 @@ func GetInputByOutput() (unitNodes UnitNodesResponse, err error) {
 	// Формируем параметры запроса
 	baseURL := fmt.Sprintf("%s://%s%s%s/unit_nodes", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX)
     
-    schemaData, err := schema.LoadSchema()
+    schemaData, err := loadSchema()
     
     uuid := strings.Split(schemaData.OutputTopic["output_units_nodes/pepeunit"][0], "/")[1]
 
@@ -182,44 +200,6 @@ func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error) {
             fmt.Println(i, two.TopicName)
         }
     }
-	return
-}
-
-func GetCurrentSchema() (newSchema schema.Schema, err error) {
-
-	cfg := config.GetConfig()
-
-	// Формируем параметры запроса
-	baseURL := fmt.Sprintf("%s://%s%s%s/units/get_current_schema/", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX)
-
-	// Собираем полный URL
-	fullURL := baseURL + cfg.UnitUUID
-
-	// f Создание HTTP-запроса
-	req, err := http.NewRequest("GET", fullURL, nil)
-
-	// Установка заголовков
-	req.Header.Set("accept", "*/*")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-auth-token", cfg.PEPEUNIT_TOKEN)
-
-	// Отправка запроса
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-
-	// Чтение ответа
-	body, err := ioutil.ReadAll(resp.Body)
-
-	rawJSON := string(body)
-	rawJSON = strings.Replace(rawJSON, "\\\"", "\"", -1)
-
-	// Десериализация JSON
-	err = json.Unmarshal([]byte(rawJSON[1:len(rawJSON)-1]), &newSchema)
-
 	return
 }
 

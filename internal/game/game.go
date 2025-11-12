@@ -1,24 +1,27 @@
 package game
 
 import (
-	"fmt"
+	"context"
 	_ "embed"
-    "github.com/atotto/clipboard"
+	"encoding/json"
+	"fmt"
+	"image/color"
+	"log"
+	"math"
+	"strings"
+
+	"github.com/atotto/clipboard"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-    "github.com/hajimehoshi/ebiten/v2/text"
-	"image/color"
-    "strings"
-	"math"
-    "log"
-    "golang.org/x/image/font"
+	"github.com/hajimehoshi/ebiten/v2/text"
+	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 
 	"picker/internal/config"
 	"picker/internal/graphics"
-	"picker/internal/mqttclient"
 	"picker/internal/queries"
-	"picker/internal/state"
+
+	pepeunit "github.com/w7a8n1y4a/pepeunit_go_client"
 )
 
 type InputMode int
@@ -32,16 +35,71 @@ const (
 var fontData []byte
 
 type Game struct {
-	Client          *mqttclient.MqttClient
-	Units           queries.UnitsByNodesResponse
-	StateManager    *state.StateManager
-	KeyDownMap      map[ebiten.Key]bool // Состояние кнопок
-	SelectedSegments []int              // Хранение текущего выбора для каждого слоя
-	ActiveLayer     int                 // Индекс текущего слоя
-    InputMode       InputMode
-	TextInput       string
-	OnTextInputDone func(string)
-    IsFirstWrite    bool
+	PepeClient       *pepeunit.PepeunitClient
+	Units            queries.UnitsByNodesResponse
+	StateData        map[string][][]string
+	KeyDownMap       map[ebiten.Key]bool // Состояние кнопок
+	SelectedSegments []int               // Хранение текущего выбора для каждого слоя
+	ActiveLayer      int                 // Индекс текущего слоя
+	InputMode        InputMode
+	TextInput        string
+	OnTextInputDone  func(string)
+	IsFirstWrite     bool
+}
+
+func (g *Game) GetState() map[string][][]string {
+	// return a copy to avoid external mutation
+	copyState := make(map[string][][]string)
+	for uuid, options := range g.StateData {
+		dup := make([][]string, len(options))
+		for i, pair := range options {
+			dup[i] = append([]string{}, pair...)
+		}
+		copyState[uuid] = dup
+	}
+	return copyState
+}
+
+func (g *Game) saveStateRemote() error {
+	if g.PepeClient == nil || g.PepeClient.GetRESTClient() == nil {
+		return nil
+	}
+	ctx := context.Background()
+	payload, err := json.Marshal(g.StateData)
+	if err != nil {
+		return err
+	}
+	return g.PepeClient.GetRESTClient().SetStateStorage(ctx, string(payload), map[string]interface{}{})
+}
+
+func (g *Game) AddOption(unitNodeUUID, optionName, optionValue string) error {
+	if _, ok := g.StateData[unitNodeUUID]; !ok {
+		g.StateData[unitNodeUUID] = [][]string{}
+	}
+	// upsert
+	for i, pair := range g.StateData[unitNodeUUID] {
+		if pair[0] == optionName {
+			g.StateData[unitNodeUUID][i][1] = optionValue
+			return g.saveStateRemote()
+		}
+	}
+	g.StateData[unitNodeUUID] = append(g.StateData[unitNodeUUID], []string{optionName, optionValue})
+	return g.saveStateRemote()
+}
+
+func (g *Game) RemoveOption(unitNodeUUID, optionName string) error {
+	items, ok := g.StateData[unitNodeUUID]
+	if !ok {
+		return nil
+	}
+	filtered := make([][]string, 0, len(items))
+	for _, pair := range items {
+		if pair[0] != optionName {
+			filtered = append(filtered, pair)
+		}
+	}
+	g.StateData[unitNodeUUID] = filtered
+	return g.saveStateRemote()
 }
 
 // LoadFont загружает шрифт из файла
@@ -105,158 +163,159 @@ func (g *Game) StartTextInput(callback func(string)) {
 }
 
 func (g *Game) AwaitTextInput(isFirstWrite bool) string {
-    // Создаем канал для передачи текста
-    resultChan := make(chan string)
-    
-    // Переключаем игру в режим ввода текста
-    g.InputMode = ModeTextInput
-    g.TextInput = ""
-    g.IsFirstWrite = isFirstWrite
-    
-    // Определяем колбэк для завершения ввода
-    g.OnTextInputDone = func(input string) {
-        resultChan <- input
-        close(resultChan)
-        g.InputMode = ModeGame
-    }
-    
-    // Блокируем выполнение функции до получения результата
-    return <-resultChan
+	// Создаем канал для передачи текста
+	resultChan := make(chan string)
+
+	// Переключаем игру в режим ввода текста
+	g.InputMode = ModeTextInput
+	g.TextInput = ""
+	g.IsFirstWrite = isFirstWrite
+
+	// Определяем колбэк для завершения ввода
+	g.OnTextInputDone = func(input string) {
+		resultChan <- input
+		close(resultChan)
+		g.InputMode = ModeGame
+	}
+
+	// Блокируем выполнение функции до получения результата
+	return <-resultChan
 }
 
 func (g *Game) Update() error {
-    switch g.InputMode {
-    case ModeGame:
-        if ebiten.IsKeyPressed(ebiten.KeyEscape) {
-            return fmt.Errorf("game closed by user")
-        }
+	switch g.InputMode {
+	case ModeGame:
+		if ebiten.IsKeyPressed(ebiten.KeyEscape) {
+			return fmt.Errorf("game closed by user")
+		}
 
-        cfg := config.GetConfig()
-        mouseX, mouseY := ebiten.CursorPosition()
-        dx, dy := mouseX-cfg.PickerCenterX, mouseY-cfg.PickerCenterY
-        angle := math.Atan2(-float64(dy), -float64(dx)) + math.Pi
+		cfg := config.GetConfig()
+		mouseX, mouseY := ebiten.CursorPosition()
+		dx, dy := mouseX-cfg.PickerCenterX, mouseY-cfg.PickerCenterY
+		angle := math.Atan2(-float64(dy), -float64(dx)) + math.Pi
 
-        var currentLayerLength int
-        switch g.ActiveLayer {
-        case 0: // Первый слой — список Units
-            currentLayerLength = len(g.Units.Units)
-        case 1: // Второй слой — UnitNodes выбранного Unit
-            if g.SelectedSegments[0] < len(g.Units.Units) {
-                currentLayerLength = len(g.Units.Units[g.SelectedSegments[0]].UnitNodes)
-            }
-        case 2: // Третий слой — данные из StateManager
-            if g.SelectedSegments[0] < len(g.Units.Units) {
-                selectedUnit := g.Units.Units[g.SelectedSegments[0]]
-                if g.SelectedSegments[1] < len(selectedUnit.UnitNodes) {
-                    selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
-                    stateData := g.StateManager.GetState()[selectedNode.UUID]
-                    currentLayerLength = len(stateData) + 1
-                }
-            }
-        }
+		var currentLayerLength int
+		switch g.ActiveLayer {
+		case 0: // Первый слой — список Units
+			currentLayerLength = len(g.Units.Units)
+		case 1: // Второй слой — UnitNodes выбранного Unit
+			if g.SelectedSegments[0] < len(g.Units.Units) {
+				currentLayerLength = len(g.Units.Units[g.SelectedSegments[0]].UnitNodes)
+			}
+		case 2: // Третий слой — данные из StateManager
+			if g.SelectedSegments[0] < len(g.Units.Units) {
+				selectedUnit := g.Units.Units[g.SelectedSegments[0]]
+				if g.SelectedSegments[1] < len(selectedUnit.UnitNodes) {
+					selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
+					stateData := g.GetState()[selectedNode.UUID]
+					currentLayerLength = len(stateData) + 1
+				}
+			}
+		}
 
-        if currentLayerLength > 0 {
-            segmentAngle := 2 * math.Pi / float64(currentLayerLength)
-            g.SelectedSegments[g.ActiveLayer] = int(angle / segmentAngle) % currentLayerLength
-        }
+		if currentLayerLength > 0 {
+			segmentAngle := 2 * math.Pi / float64(currentLayerLength)
+			g.SelectedSegments[g.ActiveLayer] = int(angle/segmentAngle) % currentLayerLength
+		}
 
-        g.handleKey(ebiten.KeyDelete, func() {
-            if g.ActiveLayer == 2 {
-                selectedUnitIdx := g.SelectedSegments[0]
-                selectedNodeIdx := g.SelectedSegments[1]
-                if selectedUnitIdx < len(g.Units.Units) {
-                    selectedUnit := g.Units.Units[selectedUnitIdx]
-                    if selectedNodeIdx < len(selectedUnit.UnitNodes) {
-                        selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
-                        stateData := g.StateManager.GetState()[selectedNode.UUID]
-                        if g.SelectedSegments[2] != 0 && g.SelectedSegments[2]-1 < len(stateData) {
-                            optionName := stateData[g.SelectedSegments[2]-1][0]
-                            // Используем uгRemoveOption для удаления опции
-                            err := g.StateManager.RemoveOption(selectedNode.UUID, optionName)
-                            if err != nil {
-                                fmt.Println("Error removing option:", err)
-                            }
-                        }
-                    }
-                }
-            }
-        })
+		g.handleKey(ebiten.KeyDelete, func() {
+			if g.ActiveLayer == 2 {
+				selectedUnitIdx := g.SelectedSegments[0]
+				selectedNodeIdx := g.SelectedSegments[1]
+				if selectedUnitIdx < len(g.Units.Units) {
+					selectedUnit := g.Units.Units[selectedUnitIdx]
+					if selectedNodeIdx < len(selectedUnit.UnitNodes) {
+						selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
+						stateData := g.GetState()[selectedNode.UUID]
+						if g.SelectedSegments[2] != 0 && g.SelectedSegments[2]-1 < len(stateData) {
+							optionName := stateData[g.SelectedSegments[2]-1][0]
+							// Используем uгRemoveOption для удаления опции
+							err := g.RemoveOption(selectedNode.UUID, optionName)
+							if err != nil {
+								fmt.Println("Error removing option:", err)
+							}
+						}
+					}
+				}
+			}
+		})
 
+		g.handleKey(ebiten.Key(ebiten.MouseButtonLeft), func() {
+			if g.ActiveLayer < 2 {
+				g.ActiveLayer++
+				g.SelectedSegments[g.ActiveLayer] = 0
+			} else if g.ActiveLayer == 2 {
+				selectedUnitIdx := g.SelectedSegments[0]
+				selectedNodeIdx := g.SelectedSegments[1]
+				if selectedUnitIdx < len(g.Units.Units) {
+					selectedUnit := g.Units.Units[selectedUnitIdx]
+					if selectedNodeIdx < len(selectedUnit.UnitNodes) {
+						selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
+						stateData := g.GetState()[selectedNode.UUID]
+						if g.SelectedSegments[2] == 0 {
+							fmt.Println("This is Add button")
+							go func() {
+								optionName := g.AwaitTextInput(true)
+								optionContent := g.AwaitTextInput(false)
+								g.AddOption(selectedNode.UUID, optionName, optionContent)
+							}()
+						} else {
+							if stateData != nil {
 
-        g.handleKey(ebiten.Key(ebiten.MouseButtonLeft), func() {
-            if g.ActiveLayer < 2 {
-                g.ActiveLayer++
-                g.SelectedSegments[g.ActiveLayer] = 0
-            } else if g.ActiveLayer == 2 {
-                selectedUnitIdx := g.SelectedSegments[0]
-                selectedNodeIdx := g.SelectedSegments[1]
-                if selectedUnitIdx < len(g.Units.Units) {
-                    selectedUnit := g.Units.Units[selectedUnitIdx]
-                    if selectedNodeIdx < len(selectedUnit.UnitNodes) {
-                        selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
-                        stateData := g.StateManager.GetState()[selectedNode.UUID]
-                        if g.SelectedSegments[2] == 0 {
-                            fmt.Println("This is Add button")
-                            go func() {
-                                optionName := g.AwaitTextInput(true)
-                                optionContent := g.AwaitTextInput(false)
-                                g.StateManager.AddOption(selectedNode.UUID, optionName, optionContent)
-                            }()
-                        } else {
-                            if stateData != nil{
-                            
-                                fmt.Println(stateData[g.SelectedSegments[2]-1])
-                                // TODO: change /pepeunit logic to adaptive without /pepeunit
-                                topicName := cfg.PEPEUNIT_URL + "/" + selectedNode.UUID + "/pepeunit"
-                                fmt.Println(topicName)
-                                err := g.Client.Publish(topicName, 0, false, stateData[g.SelectedSegments[2]-1][1]) 
-                                if err == nil {
-                                    fmt.Println("Sendet")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        })
+								fmt.Println(stateData[g.SelectedSegments[2]-1])
+								// TODO: change /pepeunit logic to adaptive without /pepeunit
+								topicName := cfg.PEPEUNIT_URL + "/" + selectedNode.UUID + "/pepeunit"
+								fmt.Println(topicName)
+								if g.PepeClient != nil && g.PepeClient.GetMQTTClient() != nil {
+									err := g.PepeClient.GetMQTTClient().Publish(topicName, stateData[g.SelectedSegments[2]-1][1])
+									if err == nil {
+										fmt.Println("Sendet")
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		})
 
-        g.handleKey(ebiten.Key(ebiten.MouseButtonRight), func() {
-            if g.ActiveLayer > 0 {
-                g.ActiveLayer--
-                g.SelectedSegments[g.ActiveLayer] = 0
-            }
-        })
-    case ModeTextInput:
-	
-        for _, char := range ebiten.InputChars() {
-            if char != '\n' && char != '\r' {
-                g.TextInput += string(char)
-            }
-        }
+		g.handleKey(ebiten.Key(ebiten.MouseButtonRight), func() {
+			if g.ActiveLayer > 0 {
+				g.ActiveLayer--
+				g.SelectedSegments[g.ActiveLayer] = 0
+			}
+		})
+	case ModeTextInput:
 
-        // Обработка Backspace
-        if len(g.TextInput) > 0 {
-            g.handleKey(ebiten.KeyBackspace, func() {
-                g.TextInput = g.TextInput[:len(g.TextInput)-1]
-            })
-        }
+		for _, char := range ebiten.InputChars() {
+			if char != '\n' && char != '\r' {
+				g.TextInput += string(char)
+			}
+		}
 
-        g.handleKeyCombination(ebiten.KeyV, ebiten.KeyControl, func() {
+		// Обработка Backspace
+		if len(g.TextInput) > 0 {
+			g.handleKey(ebiten.KeyBackspace, func() {
+				g.TextInput = g.TextInput[:len(g.TextInput)-1]
+			})
+		}
+
+		g.handleKeyCombination(ebiten.KeyV, ebiten.KeyControl, func() {
 			clipboardText, err := clipboard.ReadAll()
 			if err == nil {
 				g.TextInput += clipboardText
 			}
 		})
 
-        g.handleKey(ebiten.KeyEnter, func() {
-            if g.OnTextInputDone != nil {
+		g.handleKey(ebiten.KeyEnter, func() {
+			if g.OnTextInputDone != nil {
 				g.OnTextInputDone(g.TextInput)
 			}
 			g.InputMode = ModeGame
 
-        })
- 
-    }
+		})
+
+	}
 
 	return nil
 }
@@ -303,151 +362,149 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	switch g.InputMode {
 	case ModeGame:
-        for layerIndex := 0; layerIndex <= g.ActiveLayer; layerIndex++ {
-            var items [][]string
+		for layerIndex := 0; layerIndex <= g.ActiveLayer; layerIndex++ {
+			var items [][]string
 
-            switch layerIndex {
-            case 0:
-                for _, unit := range g.Units.Units {
-                    items = append(items, []string{unit.Name})
-                }
-            case 1:
-                if g.SelectedSegments[0] < len(g.Units.Units) {
-                    for _, node := range g.Units.Units[g.SelectedSegments[0]].UnitNodes {
-                        items = append(items, []string{node.TopicName})
-                    }
-                }
-            case 2:
-                if g.SelectedSegments[0] < len(g.Units.Units) {
-                    selectedUnit := g.Units.Units[g.SelectedSegments[0]]
-                    if g.SelectedSegments[1] < len(selectedUnit.UnitNodes) {
-                        selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
-                        stateData := g.StateManager.GetState()[selectedNode.UUID]
-                        
-                        items = append(items, []string{"Create New Option"})
+			switch layerIndex {
+			case 0:
+				for _, unit := range g.Units.Units {
+					items = append(items, []string{unit.Name})
+				}
+			case 1:
+				if g.SelectedSegments[0] < len(g.Units.Units) {
+					for _, node := range g.Units.Units[g.SelectedSegments[0]].UnitNodes {
+						items = append(items, []string{node.TopicName})
+					}
+				}
+			case 2:
+				if g.SelectedSegments[0] < len(g.Units.Units) {
+					selectedUnit := g.Units.Units[g.SelectedSegments[0]]
+					if g.SelectedSegments[1] < len(selectedUnit.UnitNodes) {
+						selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
+						stateData := g.GetState()[selectedNode.UUID]
 
-                        for _, value := range stateData {
-                            items = append(items, value)
-                        }
-                    }
-                }
-            }
+						items = append(items, []string{"Create New Option"})
 
-            segmentAngle := 2 * math.Pi / float64(len(items))
-            layerOffset := float64(layerIndex) * 60
-            for i := range items {
-                angleStart := float64(i) * segmentAngle
-                angleEnd := angleStart + segmentAngle
-                clr := color.RGBA{176, 190, 197, 255}
-                if i == g.SelectedSegments[layerIndex] {
-                    clr = color.RGBA{255, 61, 0, 255}
-                }
-                graphics.DrawSegment(
-                    screen,
-                    cfg.PickerCenterX,
-                    cfg.PickerCenterY,
-                    cfg.RadiusInner+int(layerOffset),
-                    cfg.RadiusInner+int(layerOffset)+cfg.ThickSegment,
-                    angleStart+0.01 - 0.0015 * float64(layerIndex),
-                    angleEnd-0.01 + 0.0015 * float64(layerIndex),
-                    clr,
-                )
-            }
-            if g.SelectedSegments[layerIndex] >= 0 && len(items) > g.SelectedSegments[layerIndex] {
-                var fontSize int = 24
-                var centerY int = 0
-                fontFace := LoadFont(float64(fontSize)) // Укажите путь и размер шрифта
+						for _, value := range stateData {
+							items = append(items, value)
+						}
+					}
+				}
+			}
 
-                centerX := int(cfg.ScreenWidth/2)
-                centerUnit := int(cfg.ScreenHeight/2) - int(float64(fontSize)/2)
-                centerUnitNode := int(cfg.ScreenHeight/2) + int(float64(fontSize) * 1.5)
-                centerOption := int(cfg.ScreenHeight/2)
+			segmentAngle := 2 * math.Pi / float64(len(items))
+			layerOffset := float64(layerIndex) * 60
+			for i := range items {
+				angleStart := float64(i) * segmentAngle
+				angleEnd := angleStart + segmentAngle
+				clr := color.RGBA{176, 190, 197, 255}
+				if i == g.SelectedSegments[layerIndex] {
+					clr = color.RGBA{255, 61, 0, 255}
+				}
+				graphics.DrawSegment(
+					screen,
+					cfg.PickerCenterX,
+					cfg.PickerCenterY,
+					cfg.RadiusInner+int(layerOffset),
+					cfg.RadiusInner+int(layerOffset)+cfg.ThickSegment,
+					angleStart+0.01-0.0015*float64(layerIndex),
+					angleEnd-0.01+0.0015*float64(layerIndex),
+					clr,
+				)
+			}
+			if g.SelectedSegments[layerIndex] >= 0 && len(items) > g.SelectedSegments[layerIndex] {
+				var fontSize int = 24
+				var centerY int = 0
+				fontFace := LoadFont(float64(fontSize)) // Укажите путь и размер шрифта
 
-                optionExternalLen := int(float64(cfg.RadiusInner) + float64(cfg.ThickSegment) * 3 + float64(fontSize) * float64(layerIndex))
+				centerX := int(cfg.ScreenWidth / 2)
+				centerUnit := int(cfg.ScreenHeight/2) - int(float64(fontSize)/2)
+				centerUnitNode := int(cfg.ScreenHeight/2) + int(float64(fontSize)*1.5)
+				centerOption := int(cfg.ScreenHeight / 2)
 
-               
-                switch layerIndex {
-                    case 0:
-                        centerY = centerUnit
-                    case 1:
-                        centerY = centerUnitNode
-                    case 2:
-                        centerY = centerOption - optionExternalLen + fontSize
-                }
-                // _, _, _ = fontFace, centerX, centerY
-                // fmt.Println(items[g.SelectedSegments[layerIndex]]) 
-                DrawCenteredText(
-                    screen,
-                    fontFace,
-                    items[g.SelectedSegments[layerIndex]][0],
-                    centerX,
-                    centerY,
-                    cfg.RadiusInner,
-                    4,
-                    color.White,
-                )
+				optionExternalLen := int(float64(cfg.RadiusInner) + float64(cfg.ThickSegment)*3 + float64(fontSize)*float64(layerIndex))
 
-                if len(items[g.SelectedSegments[layerIndex]]) == 2 {
-                    DrawCenteredText(
-                        screen,
-                        fontFace,
-                        items[g.SelectedSegments[layerIndex]][1],
-                        centerX,
-                        centerOption + optionExternalLen + 20,
-                        800,
-                        4,
-                        color.White,
-                    )
- 
-                }
+				switch layerIndex {
+				case 0:
+					centerY = centerUnit
+				case 1:
+					centerY = centerUnitNode
+				case 2:
+					centerY = centerOption - optionExternalLen + fontSize
+				}
+				// _, _, _ = fontFace, centerX, centerY
+				// fmt.Println(items[g.SelectedSegments[layerIndex]])
+				DrawCenteredText(
+					screen,
+					fontFace,
+					items[g.SelectedSegments[layerIndex]][0],
+					centerX,
+					centerY,
+					cfg.RadiusInner,
+					4,
+					color.White,
+				)
 
-            }
-        }
-    case ModeTextInput:
-        fontFace := LoadFont(24) // Укажите путь и размер шрифта
-        fontBigFace := LoadFont(32) // Укажите путь и размер шрифта
-        centerX := cfg.ScreenWidth/2
-        centerY := cfg.ScreenHeight/2
-        
-        var targetText string = "Write name Option"
+				if len(items[g.SelectedSegments[layerIndex]]) == 2 {
+					DrawCenteredText(
+						screen,
+						fontFace,
+						items[g.SelectedSegments[layerIndex]][1],
+						centerX,
+						centerOption+optionExternalLen+20,
+						800,
+						4,
+						color.White,
+					)
 
-        if g.IsFirstWrite != true {
-            targetText = "Write UnitNode state"
-        }
+				}
 
-        DrawCenteredText(
-            screen,
-            fontBigFace,
-            targetText,
-            centerX,
-            centerY/3,
-            300,
-            4,
-            color.White,
-        )
+			}
+		}
+	case ModeTextInput:
+		fontFace := LoadFont(24)    // Укажите путь и размер шрифта
+		fontBigFace := LoadFont(32) // Укажите путь и размер шрифта
+		centerX := cfg.ScreenWidth / 2
+		centerY := cfg.ScreenHeight / 2
 
+		var targetText string = "Write name Option"
 
-        DrawCenteredText(
-            screen,
-            fontFace,
-            "Enter text or <CTRL + V>",
-            centerX,
-            centerY/2,
-            300,
-            4,
-            color.White,
-        )
+		if g.IsFirstWrite != true {
+			targetText = "Write UnitNode state"
+		}
 
-        DrawCenteredText(
-            screen,
-            fontFace,
-            g.TextInput,
-            centerX,
-            centerY,
-            800,
-            4,
-            color.White,
-        )
+		DrawCenteredText(
+			screen,
+			fontBigFace,
+			targetText,
+			centerX,
+			centerY/3,
+			300,
+			4,
+			color.White,
+		)
+
+		DrawCenteredText(
+			screen,
+			fontFace,
+			"Enter text or <CTRL + V>",
+			centerX,
+			centerY/2,
+			300,
+			4,
+			color.White,
+		)
+
+		DrawCenteredText(
+			screen,
+			fontFace,
+			g.TextInput,
+			centerX,
+			centerY,
+			800,
+			4,
+			color.White,
+		)
 
 	}
 }
@@ -456,4 +513,3 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	cfg := config.GetConfig()
 	return cfg.ScreenWidth, cfg.ScreenHeight
 }
-
