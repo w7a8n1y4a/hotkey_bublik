@@ -1,4 +1,6 @@
 {   
+    "RADIUS_INNER": 200,
+    "THICK_SEGMENT": 50,
     "PEPEUNIT_URL": "unit.example.com",
     "PEPEUNIT_APP_PREFIX": "/pepeunit",
     "PEPEUNIT_API_ACTUAL_PREFIX": "/api/v1",
@@ -10,6 +12,6 @@
     "SECRET_KEY": "32_bit_secret_key",
     "PING_INTERVAL": 30,
     "STATE_SEND_INTERVAL": 300,
-    "RADIUS_INNER": 200,
-    "THICK_SEGMENT": 50
+    "MIN_LOG_LEVEL": "Debug",
+    "MAX_LOG_LENGTH": 64
 }

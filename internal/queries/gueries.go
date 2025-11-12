@@ -5,13 +5,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"picker/internal/config"
-    "bytes"
 	"strings"
-    "archive/zip"
-    "io"
-    "os"
-    "path/filepath"
 )
 
 // Определение структур для десериализации JSON-ответа
@@ -69,23 +65,12 @@ type UnitsByNodesResponse struct {
 }
 
 type UnitNodesResponse struct {
-   	Count int            `json:"count"`
-	UnitNodes []UnitNode `json:"unit_nodes"` 
+	Count     int        `json:"count"`
+	UnitNodes []UnitNode `json:"unit_nodes"`
 }
 
 type StateRequest struct {
 	State string `json:"state"`
-}
-
-func extractUUIDs(urls []string) []string {
-	uuids := []string{}
-	for _, url := range urls {
-		parts := strings.Split(url, "/")
-		if len(parts) > 1 {
-			uuids = append(uuids, parts[1])
-		}
-	}
-	return uuids
 }
 
 func GetInputByOutput() (unitNodes UnitNodesResponse, err error) {
@@ -94,10 +79,10 @@ func GetInputByOutput() (unitNodes UnitNodesResponse, err error) {
 
 	// Формируем параметры запроса
 	baseURL := fmt.Sprintf("%s://%s%s%s/unit_nodes", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX)
-    
-    schemaData, err := loadSchema()
-    
-    uuid := strings.Split(schemaData.OutputTopic["output_units_nodes/pepeunit"][0], "/")[1]
+
+	schemaData, err := loadSchema()
+
+	uuid := strings.Split(schemaData.OutputTopic["output_units_nodes/pepeunit"][0], "/")[1]
 
 	// Добавляем параметры в URL
 	params := []string{
@@ -107,7 +92,7 @@ func GetInputByOutput() (unitNodes UnitNodesResponse, err error) {
 		"order_by_create_date=desc",
 		"type=Output",
 		"type=Input",
-        "output_uuid=" + uuid,
+		"output_uuid=" + uuid,
 	}
 
 	// Собираем полный URL
@@ -137,7 +122,6 @@ func GetInputByOutput() (unitNodes UnitNodesResponse, err error) {
 	return
 }
 
-
 func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error) {
 
 	cfg := config.GetConfig()
@@ -158,15 +142,15 @@ func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error) {
 		"unit_node_type=Input",
 	}
 
-    unitNodes, err := GetInputByOutput()
-    
-    if unitNodes.Count == 0 {
-        return UnitsByNodesResponse{}, fmt.Errorf("No edges found")
-    }
+	unitNodes, err := GetInputByOutput()
+
+	if unitNodes.Count == 0 {
+		return UnitsByNodesResponse{}, fmt.Errorf("No edges found")
+	}
 
 	// Добавляем массив unitNodeUUIDs в параметры
 	for _, item := range unitNodes.UnitNodes {
-		params = append(params, "unit_node_uuids=" + item.UUID)
+		params = append(params, "unit_node_uuids="+item.UUID)
 	}
 
 	// Собираем полный URL
@@ -192,231 +176,13 @@ func GetUnitsByNodesQuery() (unitsByNodes UnitsByNodesResponse, err error) {
 
 	// Десериализация JSON
 	err = json.Unmarshal(body, &unitsByNodes)
-    for inc, item := range unitsByNodes.Units{
-    
-        fmt.Println(inc, item.Name)
-        for i, two := range item.UnitNodes{
-        
-            fmt.Println(i, two.TopicName)
-        }
-    }
-	return
-}
+	for inc, item := range unitsByNodes.Units {
 
-func GetCurrentEnv() (env string, err error) {
+		fmt.Println(inc, item.Name)
+		for i, two := range item.UnitNodes {
 
-	cfg := config.GetConfig()
-
-	// Формируем параметры запроса
-	baseURL := fmt.Sprintf("%s://%s%s%s/units/env/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX, cfg.UnitUUID)
-
-	// f Создание HTTP-запроса
-	req, err := http.NewRequest("GET", baseURL, nil)
-
-    // Установка заголовков
-	req.Header.Set("accept", "application/json")
-	req.Header.Set("x-auth-token", cfg.PEPEUNIT_TOKEN)
-    
-	// Отправка запроса
-	client := &http.Client{}
-	resp, err := client.Do(req)
-
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-
-	// Чтение ответа
-	body, err := ioutil.ReadAll(resp.Body)
-
-    env = string(body)
-
-	return
-
-}
-
-
-func SetStateStorage(state string) (err error) {
-
-	cfg := config.GetConfig()
-
-	// Формируем параметры запроса
-	baseURL := fmt.Sprintf("%s://%s%s%s/units/set_state_storage/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX, cfg.UnitUUID)
-    
-    // Создание тела запроса
-	requestBody := StateRequest{
-		State: state,
-	}
-	requestBodyJSON, err := json.Marshal(requestBody)
-	if err != nil {
-		return fmt.Errorf("failed to marshal request body: %w", err)
-	}
-
-	req, err := http.NewRequest("POST", baseURL, bytes.NewBuffer(requestBodyJSON))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-    }
-	// Установка заголовков
-	req.Header.Set("accept", "*/*")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-auth-token", cfg.PEPEUNIT_TOKEN)
-
-	// Отправка запроса
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-
-    // Чтение ответа
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(body))
-	}
-
-	fmt.Printf("Response: %s\n", string(body))
-	return nil 
-}
-
-func GetStateStorage() (state string, err error) {
-
-	cfg := config.GetConfig()
-
-	// Формируем параметры запроса
-	baseURL := fmt.Sprintf("%s://%s%s%s/units/get_state_storage/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX, cfg.UnitUUID)
-    
-	req, err := http.NewRequest("GET", baseURL, nil)
-
-	// Установка заголовков
-	req.Header.Set("accept", "application/json")
-	req.Header.Set("x-auth-token", cfg.PEPEUNIT_TOKEN)
-    
-	// Отправка запроса
-	client := &http.Client{}
-	resp, err := client.Do(req)
-
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-
-	// Чтение ответа
-	body, err := ioutil.ReadAll(resp.Body)
-
-	state = string(body)
-
-	return
-}
-
-func GetCurrentVersion() (path string, err error) {
-	cfg := config.GetConfig()
-
-	// Формируем параметры запроса
-	baseURL := fmt.Sprintf("%s://%s%s%s/v1/units/firmware/zip/%s", cfg.HTTP_TYPE, cfg.PEPEUNIT_URL, cfg.PEPEUNIT_APP_PREFIX, cfg.PEPEUNIT_API_ACTUAL_PREFIX, cfg.UnitUUID)
-
-	// Создание HTTP-запроса
-	req, err := http.NewRequest("GET", baseURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Установка заголовков
-	req.Header.Set("accept", "application/json")
-	req.Header.Set("x-auth-token", cfg.PEPEUNIT_TOKEN)
-
-	// Отправка запроса
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected response status: %d", resp.StatusCode)
-	}
-
-	// Создаем временный файл для сохранения архива
-	tempFile, err := os.CreateTemp("", "firmware_*.zip")
-	if err != nil {
-		return "", fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer os.Remove(tempFile.Name()) // Удаляем временный файл после использования
-
-	// Сохраняем содержимое ответа в файл
-	_, err = io.Copy(tempFile, resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to save response to file: %w", err)
-	}
-
-	// Закрываем файл для последующего чтения
-	tempFile.Close()
-
-	// Директория для распаковки
-	outputDir := "update_data"
-	if err := os.MkdirAll(outputDir, os.ModePerm); err != nil {
-		return "", fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	// Распаковка архива
-	err = unzip(tempFile.Name(), outputDir)
-	if err != nil {
-		return "", fmt.Errorf("failed to unzip file: %w", err)
-	}
-
-	return outputDir, nil
-}
-
-func unzip(src string, dest string) error {
-	reader, err := zip.OpenReader(src)
-	if err != nil {
-		return fmt.Errorf("failed to open zip file: %w", err)
-	}
-	defer reader.Close()
-
-	for _, file := range reader.File {
-		filePath := filepath.Join(dest, file.Name)
-
-		// Проверяем, что путь не выходит за пределы целевой директории
-		if !filepath.HasPrefix(filePath, filepath.Clean(dest)+string(os.PathSeparator)) {
-			return fmt.Errorf("illegal file path: %s", filePath)
-		}
-
-		if file.FileInfo().IsDir() {
-			// Создаем директории
-			if err := os.MkdirAll(filePath, os.ModePerm); err != nil {
-				return fmt.Errorf("failed to create directory: %w", err)
-			}
-		} else {
-			// Распаковываем файлы
-			if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
-				return fmt.Errorf("failed to create directory for file: %w", err)
-			}
-
-			outFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
-			if err != nil {
-				return fmt.Errorf("failed to open file for writing: %w", err)
-			}
-
-			fileReader, err := file.Open()
-			if err != nil {
-				return fmt.Errorf("failed to open file inside zip: %w", err)
-			}
-
-			_, err = io.Copy(outFile, fileReader)
-			outFile.Close()
-			fileReader.Close()
-			if err != nil {
-				return fmt.Errorf("failed to write file: %w", err)
-			}
+			fmt.Println(i, two.TopicName)
 		}
 	}
-
-	return nil
+	return
 }
-
