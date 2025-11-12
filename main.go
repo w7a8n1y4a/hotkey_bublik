@@ -2,8 +2,8 @@ package main
 
 import (
 	"bytes"
-	_ "embed"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -16,12 +16,13 @@ import (
 	"picker/internal/graphics"
 	"picker/internal/queries"
 
+	"time"
+
 	"github.com/getlantern/systray"
 	"github.com/hajimehoshi/ebiten/v2"
 	pepeunit "github.com/w7a8n1y4a/pepeunit_go_client"
 	"golang.design/x/hotkey"
 	"golang.design/x/hotkey/mainthread"
-	"time"
 )
 
 //go:embed assets/icons/64.png
@@ -29,13 +30,14 @@ var iconData []byte
 
 func main() {
 	pepeClient, err := pepeunit.NewPepeunitClient(pepeunit.PepeunitClientConfig{
-		EnvFilePath:       "env.json",
-		SchemaFilePath:    "schema.json",
-		LogFilePath:       "log.json",
-		EnableMQTT:        true,
-		EnableREST:        true,
-		CycleSpeed:        100 * time.Millisecond,
-		RestartMode:       pepeunit.RestartModeRestartExec,
+		EnvFilePath:      "env.json",
+		SchemaFilePath:   "schema.json",
+		LogFilePath:      "log.json",
+		EnableMQTT:       true,
+		EnableREST:       true,
+		CycleSpeed:       100 * time.Millisecond,
+		RestartMode:      pepeunit.RestartModeRestartExec,
+		SkipVersionCheck: true,
 	})
 	if err != nil {
 		log.Fatalf("init pepeunit client failed: %v", err)
@@ -45,6 +47,11 @@ func main() {
 	if pepeClient.GetMQTTClient() != nil {
 		if err := pepeClient.GetMQTTClient().Connect(ctx); err != nil {
 			log.Fatalf("mqtt connect failed: %v", err)
+		}
+		// Enable base MQTT handlers and subscribe to schema topics
+		pepeClient.SetMQTTInputHandler(nil)
+		if err := pepeClient.SubscribeAllSchemaTopics(ctx); err != nil {
+			log.Printf("subscribe topics failed: %v", err)
 		}
 	}
 	go pepeClient.RunMainCycle(ctx, nil)
@@ -154,17 +161,9 @@ func prepareGame(client *pepeunit.PepeunitClient) (*game.Game, error) {
 	stateData := make(map[string][][]string)
 	if client.GetRESTClient() != nil {
 		ctx := context.Background()
-		raw, err := client.GetRESTClient().GetStateStorage(ctx, "")
-		if err == nil && raw != nil {
-			var stateStr string
-			if s, ok := raw["state"].(string); ok {
-				stateStr = s
-			} else if s, ok := raw["State"].(string); ok {
-				stateStr = s
-			}
-			if stateStr != "" && stateStr != "\"\"" {
-				_ = json.Unmarshal([]byte(stateStr), &stateData)
-			}
+		stateStr, err := client.GetRESTClient().GetStateStorage(ctx)
+		if err == nil && stateStr != "" && stateStr != "\"\"" {
+			_ = json.Unmarshal([]byte(stateStr), &stateData)
 		}
 	}
 

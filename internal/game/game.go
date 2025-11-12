@@ -69,7 +69,7 @@ func (g *Game) saveStateRemote() error {
 	if err != nil {
 		return err
 	}
-	return g.PepeClient.GetRESTClient().SetStateStorage(ctx, string(payload), map[string]interface{}{})
+	return g.PepeClient.SetStateStorage(ctx, string(payload))
 }
 
 func (g *Game) AddOption(unitNodeUUID, optionName, optionValue string) error {
