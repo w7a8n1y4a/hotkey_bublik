@@ -6,7 +6,7 @@ stages:
   - build
   - release
 
-build:image:dev:
+build:image:master:
   stage: build
   tags:
     - shell-build-runer
