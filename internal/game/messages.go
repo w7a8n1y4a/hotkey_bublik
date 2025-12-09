@@ -260,6 +260,53 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 			)
 		}
 	}
+
+	// На втором бублике дополнительно показываем JSON‑информацию о UnitNode слева
+	if layerIndex == 1 {
+		selectedUnitIdx := g.SelectedSegments[0]
+		if selectedUnitIdx < len(g.Units.Units) {
+			selectedUnit := g.Units.Units[selectedUnitIdx]
+			selectedNodeIdx := g.SelectedSegments[1]
+			if selectedNodeIdx < len(selectedUnit.UnitNodes) {
+				selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
+
+				nodeJSON, err := json.MarshalIndent(selectedNode, "", "    ")
+				if err != nil {
+					return
+				}
+
+				labelText := "UnitNode Info:"
+
+				// Надпись слева, на уровне заголовка второго бублика
+				labelY := centerY - fontSize/2
+				labelWidth := text.BoundString(fontFace, labelText).Dx()
+				labelX := valueColumnCenterX - labelWidth/2
+				text.Draw(
+					screen,
+					labelText,
+					fontFace,
+					labelX,
+					labelY,
+					color.White,
+				)
+
+				// Форматированный JSON ниже подписи, ограничен по ширине колонки
+				valueTextY := labelY + fontSize + 10
+				maxWidth := int(cfg.ScreenWidth / 5)
+				valueTextX := valueColumnCenterX - maxWidth/2
+				DrawLeftAlignedText(
+					screen,
+					fontFace,
+					string(nodeJSON),
+					valueTextX,
+					valueTextY,
+					maxWidth,
+					4,
+					color.White,
+				)
+			}
+		}
+	}
 }
 
 // drawTextInputMessages выводит подсказки и введённый текст в режиме ввода
