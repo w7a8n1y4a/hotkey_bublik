@@ -69,8 +69,13 @@ func (g *Game) AddOption(unitNodeUUID, optionName, optionValue string) error {
 	}
 	// upsert
 	for i, pair := range g.StateData[unitNodeUUID] {
-		if pair[0] == optionName {
-			g.StateData[unitNodeUUID][i][1] = optionValue
+		if len(pair) > 0 && pair[0] == optionName {
+			// Обновляем значение, сохраняя при этом возможный хоткей (третье поле)
+			if len(pair) == 1 {
+				g.StateData[unitNodeUUID][i] = append(pair, optionValue)
+			} else {
+				g.StateData[unitNodeUUID][i][1] = optionValue
+			}
 			return g.saveStateRemote()
 		}
 	}
@@ -91,6 +96,48 @@ func (g *Game) RemoveOption(unitNodeUUID, optionName string) error {
 	}
 	g.StateData[unitNodeUUID] = filtered
 	return g.saveStateRemote()
+}
+
+// SetOptionHotkey назначает хоткей для конкретной опции.
+// Формат StateData: [name, value, hotkey] — третье поле опционально.
+// Хоткей делаем глобально уникальным: перед назначением убираем его у других опций.
+func (g *Game) SetOptionHotkey(unitNodeUUID, optionName, hotkey string) error {
+	if hotkey == "" {
+		return fmt.Errorf("hotkey cannot be empty")
+	}
+
+	// Снимаем этот хоткей со всех опций во всех нодах, чтобы он был глобально уникальным
+	for nodeUUID, items := range g.StateData {
+		for i, pair := range items {
+			if len(pair) >= 3 && pair[2] == hotkey {
+				g.StateData[nodeUUID][i][2] = ""
+			}
+		}
+	}
+
+	items, ok := g.StateData[unitNodeUUID]
+	if !ok {
+		return fmt.Errorf("unit node %s not found in state", unitNodeUUID)
+	}
+
+	for i, pair := range items {
+		if len(pair) > 0 && pair[0] == optionName {
+			switch len(pair) {
+			case 1:
+				// очень старый формат, только имя — расширяем до name, "", hotkey
+				g.StateData[unitNodeUUID][i] = []string{pair[0], "", hotkey}
+			case 2:
+				// name, value — добавляем третье поле с хоткеем
+				g.StateData[unitNodeUUID][i] = append(pair, hotkey)
+			default:
+				// уже есть третье поле — обновляем его
+				g.StateData[unitNodeUUID][i][2] = hotkey
+			}
+			return g.saveStateRemote()
+		}
+	}
+
+	return fmt.Errorf("option %s not found for unit node %s", optionName, unitNodeUUID)
 }
 
 // Метод для переключения в режим ввода текста
@@ -227,6 +274,28 @@ func (g *Game) Update() error {
 				g.SelectedSegments[g.ActiveLayer] = 0
 			}
 		})
+
+		// Назначение хоткея для опции на третьем бублике:
+		// при активном третьем слое и выбранной опции (кроме "Create New Option")
+		// по Ctrl+Shift+<буква A-Z> записываем хоткей в состояние.
+		if g.ActiveLayer == 2 {
+			selectedUnitIdx := g.SelectedSegments[0]
+			selectedNodeIdx := g.SelectedSegments[1]
+
+			if selectedUnitIdx < len(g.Units.Units) {
+				selectedUnit := g.Units.Units[selectedUnitIdx]
+				if selectedNodeIdx < len(selectedUnit.UnitNodes) {
+					selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
+					stateData := g.StateData[selectedNode.UUID]
+
+					// 0‑й сегмент — "Create New Option", реальные опции начинаются с индекса 1
+					if g.SelectedSegments[2] > 0 && g.SelectedSegments[2]-1 < len(stateData) {
+						optionName := stateData[g.SelectedSegments[2]-1][0]
+						g.handleHotkeyAssignment(optionName, selectedNode.UUID)
+					}
+				}
+			}
+		}
 	case ModeTextInput:
 		// Обновляем счётчик мигания курсора
 		g.CursorTick++
@@ -307,6 +376,31 @@ func (g *Game) handleKeyCombination(key ebiten.Key, modifier ebiten.Key, action 
 		}
 	} else {
 		g.KeyDownMap[key] = false
+	}
+}
+
+// handleHotkeyAssignment отслеживает нажатия Ctrl+Shift+буква (A‑Z)
+// и при первом нажатии назначает хоткей для указанной опции.
+func (g *Game) handleHotkeyAssignment(optionName, unitNodeUUID string) {
+	for k := ebiten.KeyA; k <= ebiten.KeyZ; k++ {
+		if ebiten.IsKeyPressed(k) && ebiten.IsKeyPressed(ebiten.KeyControl) && ebiten.IsKeyPressed(ebiten.KeyShift) {
+			if !g.KeyDownMap[k] {
+				g.KeyDownMap[k] = true
+
+				// Преобразуем код клавиши в букву A‑Z
+				offset := int(k - ebiten.KeyA)
+				if offset >= 0 && offset < 26 {
+					hotkeyChar := string(rune('A' + offset))
+					if err := g.SetOptionHotkey(unitNodeUUID, optionName, hotkeyChar); err != nil {
+						fmt.Println("failed to set hotkey:", err)
+					} else {
+						fmt.Printf("assigned hotkey Ctrl+Shift+%s to option %s (%s)\n", hotkeyChar, optionName, unitNodeUUID)
+					}
+				}
+			}
+		} else {
+			g.KeyDownMap[k] = false
+		}
 	}
 }
 

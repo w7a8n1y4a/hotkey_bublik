@@ -176,7 +176,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 	fontFace := LoadFont(float64(fontSize))
 
 	centerX := int(cfg.ScreenWidth / 2)
-	valueColumnCenterX := int(cfg.ScreenWidth / 5) // вертикальная линия центра колонки значения (1/4 экрана)
+	valueColumnCenterX := int(cfg.ScreenWidth / 5) // вертикальная линия центра левой колонки значения (1/5 экрана)
 	centerUnit := int(cfg.ScreenHeight/2) - int(float64(fontSize)/2)
 	centerUnitNode := int(cfg.ScreenHeight/2) + int(float64(fontSize)*1.5)
 	centerOption := int(cfg.ScreenHeight / 2)
@@ -207,7 +207,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 	)
 
 	// Дополнительный текст (значение опции), если он есть
-	if len(items[g.SelectedSegments[layerIndex]]) == 2 {
+	if len(items[g.SelectedSegments[layerIndex]]) >= 2 {
 		valueText := items[g.SelectedSegments[layerIndex]][1]
 
 		// Для третьего бублика (options) отображаем значение слева от бублика
@@ -259,6 +259,51 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 				color.White,
 			)
 		}
+	}
+
+	// Отображение текущего хоткея для опции на третьем бублике — в правой колонке,
+	// по аналогии с текстом под "Value:".
+	if layerIndex == 2 {
+		hotkeyLabel := "Hotkey:"
+		hotkeyValue := "No hotkey"
+
+		if len(items[g.SelectedSegments[layerIndex]]) >= 3 {
+			rawHotkey := strings.TrimSpace(items[g.SelectedSegments[layerIndex]][2])
+			if rawHotkey != "" {
+				hotkeyValue = "Ctrl+Shift+" + strings.ToUpper(rawHotkey)
+			}
+		}
+
+		// Центр правой колонки симметрично левой
+		hotkeyColumnCenterX := cfg.ScreenWidth - valueColumnCenterX
+
+		// Надпись "Hotkey:" справа, по высоте на уровне названия сегмента
+		labelY := centerY - fontSize/2
+		labelWidth := text.BoundString(fontFace, hotkeyLabel).Dx()
+		labelX := hotkeyColumnCenterX - labelWidth/2
+		text.Draw(
+			screen,
+			hotkeyLabel,
+			fontFace,
+			labelX,
+			labelY,
+			color.White,
+		)
+
+		// Текущая комбинация под надписью, ограниченная по ширине так же, как и слева
+		hotkeyTextY := labelY + fontSize + 10
+		maxWidth := int(cfg.ScreenWidth / 5)
+		hotkeyTextX := hotkeyColumnCenterX - maxWidth/2
+		DrawLeftAlignedText(
+			screen,
+			fontFace,
+			hotkeyValue,
+			hotkeyTextX,
+			hotkeyTextY,
+			maxWidth,
+			4,
+			color.White,
+		)
 	}
 
 	// На втором бублике дополнительно показываем JSON‑информацию о UnitNode слева

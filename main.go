@@ -15,6 +15,7 @@ import (
 	"picker/internal/config"
 	"picker/internal/game"
 	"picker/internal/graphics"
+	"strings"
 
 	"time"
 
@@ -61,6 +62,7 @@ func main() {
 	// Initialize the hotkey listener in the main thread
 	mainthread.Init(func() {
 		registerGlobalHotkey(pepeClient)
+		registerOptionHotkeys(pepeClient)
 	})
 
 	// Prepare icon and other resources
@@ -73,6 +75,149 @@ func main() {
 	systray.Run(func() {
 		onReady(icon, pepeClient)
 	}, onExit)
+}
+
+// registerOptionHotkeys регистрирует глобальные хоткеи Ctrl+Shift+<буква> для опций,
+// сохранённых в StateStorage (третье поле в массиве: [name, value, hotkey]).
+func registerOptionHotkeys(client *pepeunit.PepeunitClient) {
+	if client == nil {
+		return
+	}
+
+	log.Println("Trying to register option hotkeys from state...")
+
+	ctx := context.Background()
+	stateData := make(map[string][][]string)
+
+	if stateStr, err := client.GetStateStorage(ctx); err == nil && stateStr != "" && stateStr != "\"\"" {
+		// Основной путь: состояние хранится как обычный JSON-объект
+		if err := json.Unmarshal([]byte(stateStr), &stateData); err != nil {
+			// Fallback: состояние может быть сохранено как JSON-строка внутри строки
+			var wrapped string
+			if err2 := json.Unmarshal([]byte(stateStr), &wrapped); err2 == nil && wrapped != "" {
+				_ = json.Unmarshal([]byte(wrapped), &stateData)
+			}
+		}
+	}
+
+	if len(stateData) == 0 {
+		log.Println("No state data found for option hotkeys")
+		return
+	}
+
+	settings := client.GetSettings()
+
+	type hotkeyBinding struct {
+		topic   string
+		payload string
+	}
+
+	// Глобальная уникальность по букве: одна буква — один биндинг.
+	bindings := make(map[rune]hotkeyBinding)
+
+	for nodeUUID, items := range stateData {
+		for _, pair := range items {
+			if len(pair) < 3 {
+				continue
+			}
+			rawHotkey := strings.TrimSpace(pair[2])
+			if rawHotkey == "" {
+				continue
+			}
+			runes := []rune(strings.ToUpper(rawHotkey))
+			if len(runes) != 1 {
+				continue
+			}
+			ch := runes[0]
+			if ch < 'A' || ch > 'Z' {
+				continue
+			}
+
+			// Уже есть биндинг для этой буквы — пропускаем, т.к. внутри игры мы
+			// уже гарантируем уникальность по букве.
+			if _, exists := bindings[ch]; exists {
+				continue
+			}
+
+			if len(pair) < 2 {
+				continue
+			}
+
+			topicName := settings.PU_DOMAIN + "/" + nodeUUID + "/pepeunit"
+			bindings[ch] = hotkeyBinding{
+				topic:   topicName,
+				payload: pair[1],
+			}
+		}
+	}
+
+	if len(bindings) == 0 {
+		log.Println("No option hotkeys found in state")
+		return
+	}
+
+	// Маппинг символа в hotkey.Key
+	keyMap := map[rune]hotkey.Key{
+		'A': hotkey.KeyA,
+		'B': hotkey.KeyB,
+		'C': hotkey.KeyC,
+		'D': hotkey.KeyD,
+		'E': hotkey.KeyE,
+		'F': hotkey.KeyF,
+		'G': hotkey.KeyG,
+		'H': hotkey.KeyH,
+		'I': hotkey.KeyI,
+		'J': hotkey.KeyJ,
+		'K': hotkey.KeyK,
+		'L': hotkey.KeyL,
+		'M': hotkey.KeyM,
+		'N': hotkey.KeyN,
+		'O': hotkey.KeyO,
+		'P': hotkey.KeyP,
+		'Q': hotkey.KeyQ,
+		'R': hotkey.KeyR,
+		'S': hotkey.KeyS,
+		'T': hotkey.KeyT,
+		'U': hotkey.KeyU,
+		'V': hotkey.KeyV,
+		'W': hotkey.KeyW,
+		'X': hotkey.KeyX,
+		'Y': hotkey.KeyY,
+		'Z': hotkey.KeyZ,
+	}
+
+	for ch, bind := range bindings {
+		keyConst, ok := keyMap[ch]
+		if !ok {
+			continue
+		}
+
+		hk := hotkey.New([]hotkey.Modifier{hotkey.ModCtrl, hotkey.ModShift}, keyConst)
+
+		if err := hk.Register(); err != nil {
+			log.Printf("hotkey: failed to register option hotkey Ctrl+Shift+%c: %v", ch, err)
+			continue
+		}
+
+		log.Printf("Option hotkey Ctrl+Shift+%c is registered\n", ch)
+
+		// Слушаем нажатие хоткея в отдельной горутине
+		go func(hk *hotkey.Hotkey, bind hotkeyBinding, ch rune) {
+			for {
+				select {
+				case <-hk.Keydown():
+					log.Printf("Option hotkey Ctrl+Shift+%c is down, publishing to %s\n", ch, bind.topic)
+					if client != nil && client.GetMQTTClient() != nil {
+						if err := client.GetMQTTClient().Publish(bind.topic, bind.payload); err != nil {
+							log.Printf("failed to publish MQTT message for hotkey %c: %v", ch, err)
+						}
+					}
+				case <-hk.Keyup():
+					log.Printf("Option hotkey Ctrl+Shift+%c is up\n", ch)
+				}
+			}
+		}(hk, bind, ch)
+	}
 }
 
 // Register the global hotkey (Ctrl + Shift + H)
