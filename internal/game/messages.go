@@ -1,7 +1,9 @@
 package game
 
 import (
+	"bytes"
 	_ "embed"
+	"encoding/json"
 	"image/color"
 	"log"
 	"strings"
@@ -40,34 +42,117 @@ func LoadFont(size float64) font.Face {
 // DrawCenteredText отрисовывает большой текст с центрированием
 func DrawCenteredText(screen *ebiten.Image, face font.Face, textContent string, x, y, maxWidth, lineSpacing int, clr color.Color) {
 	lines := wrapText(face, textContent, maxWidth)
-	totalHeight := len(lines) * (text.BoundString(face, "A").Dy() + lineSpacing)
+	lineHeight := text.BoundString(face, "A").Dy() + lineSpacing
+	totalHeight := len(lines) * lineHeight
 	startY := y - totalHeight/2
 
 	for i, line := range lines {
 		lineWidth := text.BoundString(face, line).Dx()
 		startX := x - lineWidth/2
-		text.Draw(screen, line, face, startX, startY+(i*(text.BoundString(face, "A").Dy()+lineSpacing)), clr)
+		text.Draw(screen, line, face, startX, startY+(i*lineHeight), clr)
 	}
 }
 
-// wrapText разбивает текст на строки, которые помещаются в указанную ширину
-func wrapText(face font.Face, textContent string, maxWidth int) []string {
-	words := strings.Fields(textContent)
-	lines := []string{}
-	line := ""
+// DrawLeftAlignedText отрисовывает текст с переносами строк и выравниванием по левому краю
+func DrawLeftAlignedText(screen *ebiten.Image, face font.Face, textContent string, x, y, maxWidth, lineSpacing int, clr color.Color) {
+	lineHeight := text.BoundString(face, "A").Dy() + lineSpacing
+	currentY := y
 
-	for _, word := range words {
-		testLine := line + " " + word
-		if text.BoundString(face, strings.TrimSpace(testLine)).Dx() > maxWidth {
-			lines = append(lines, strings.TrimSpace(line))
-			line = word
-		} else {
-			line = testLine
+	paragraphs := strings.Split(textContent, "\n")
+	for _, p := range paragraphs {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			currentY += lineHeight
+			continue
+		}
+
+		lines := wrapText(face, p, maxWidth)
+		for _, line := range lines {
+			text.Draw(screen, line, face, x, currentY, clr)
+			currentY += lineHeight
 		}
 	}
-	lines = append(lines, strings.TrimSpace(line))
+}
+
+// wrapText разбивает текст на строки, которые помещаются в указанную ширину.
+// Работает и для обычного текста с пробелами, и для длинных "слов" без пробелов (например, токенов/JWT).
+func wrapText(face font.Face, textContent string, maxWidth int) []string {
+	if maxWidth <= 0 {
+		return []string{textContent}
+	}
+
+	runes := []rune(textContent)
+	var lines []string
+	var current []rune
+	lastSpace := -1
+
+	for i, r := range runes {
+		current = append(current, r)
+		if r == ' ' || r == '\t' {
+			lastSpace = len(current) - 1
+		}
+
+		if text.BoundString(face, string(current)).Dx() > maxWidth {
+			breakPos := len(current) - 1
+			if lastSpace >= 0 {
+				breakPos = lastSpace
+			}
+
+			lineRunes := current[:breakPos]
+			line := strings.TrimSpace(string(lineRunes))
+			if line != "" {
+				lines = append(lines, line)
+			}
+
+			// Оставшуюся часть текущей строки переносим на следующую итерацию
+			if breakPos < len(current) {
+				current = current[breakPos:]
+			} else {
+				current = []rune{}
+			}
+
+			// Пересчитываем lastSpace для оставшихся рун
+			lastSpace = -1
+			for j, rr := range current {
+				if rr == ' ' || rr == '\t' {
+					lastSpace = j
+				}
+			}
+		}
+
+		// Если это последний символ — добавляем текущую строку
+		if i == len(runes)-1 {
+			line := strings.TrimSpace(string(current))
+			if line != "" {
+				lines = append(lines, line)
+			}
+		}
+	}
+
+	if len(lines) == 0 {
+		return []string{""}
+	}
 
 	return lines
+}
+
+// tryPrettyJSON пытается распарсить строку как JSON и вернуть форматированный вывод
+func tryPrettyJSON(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", false
+	}
+
+	if !json.Valid([]byte(raw)) {
+		return "", false
+	}
+
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, []byte(raw), "", "    "); err != nil {
+		return "", false
+	}
+
+	return buf.String(), true
 }
 
 // drawBlurLoadingMessage выводит сообщение о загрузке размытого фона
@@ -91,6 +176,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 	fontFace := LoadFont(float64(fontSize))
 
 	centerX := int(cfg.ScreenWidth / 2)
+	valueColumnCenterX := int(cfg.ScreenWidth / 5) // вертикальная линия центра колонки значения (1/4 экрана)
 	centerUnit := int(cfg.ScreenHeight/2) - int(float64(fontSize)/2)
 	centerUnitNode := int(cfg.ScreenHeight/2) + int(float64(fontSize)*1.5)
 	centerOption := int(cfg.ScreenHeight / 2)
@@ -122,16 +208,57 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 
 	// Дополнительный текст (значение опции), если он есть
 	if len(items[g.SelectedSegments[layerIndex]]) == 2 {
-		DrawCenteredText(
-			screen,
-			fontFace,
-			items[g.SelectedSegments[layerIndex]][1],
-			centerX,
-			centerOption+optionExternalLen+20,
-			800,
-			4,
-			color.White,
-		)
+		valueText := items[g.SelectedSegments[layerIndex]][1]
+
+		// Для третьего бублика (options) отображаем значение слева от бублика
+		if layerIndex == 2 {
+			// Пытаемся отрендерить значение как JSON
+			labelText := "Text Value:"
+			if pretty, ok := tryPrettyJSON(valueText); ok {
+				valueText = pretty
+				labelText = "JSON Value:"
+			}
+
+			// Надпись слева, по высоте примерно на уровне названия сегмента
+			labelY := centerY - fontSize/2
+			labelWidth := text.BoundString(fontFace, labelText).Dx()
+			labelX := valueColumnCenterX - labelWidth/2
+			text.Draw(
+				screen,
+				labelText,
+				fontFace,
+				labelX,
+				labelY,
+				color.White,
+			)
+
+			// Текст значения на 20-40 пикселей ниже "Value:" и ограничен по ширине четвертью экрана
+			valueTextY := labelY + fontSize + 10
+			maxWidth := int(cfg.ScreenWidth / 5)
+			valueTextX := valueColumnCenterX - maxWidth/2
+			DrawLeftAlignedText(
+				screen,
+				fontFace,
+				valueText,
+				valueTextX,
+				valueTextY,
+				maxWidth,
+				4,
+				color.White,
+			)
+		} else {
+			// Для остальных слоёв (если появятся значения) сохраняем старое поведение
+			DrawCenteredText(
+				screen,
+				fontFace,
+				valueText,
+				centerX,
+				centerOption+optionExternalLen+20,
+				800,
+				4,
+				color.White,
+			)
+		}
 	}
 }
 
@@ -182,5 +309,3 @@ func (g *Game) drawTextInputMessages(screen *ebiten.Image) {
 		color.White,
 	)
 }
-
-
