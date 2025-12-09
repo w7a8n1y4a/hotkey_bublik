@@ -28,6 +28,8 @@ type Game struct {
 	Units            UnitsByNodesResponse
 	StateData        map[string][][]string
 	KeyDownMap       map[ebiten.Key]bool // Состояние кнопок
+	CursorTick       int                 // Счётчик для мигания курсора при вводе текста
+	BackspaceFrames  int                 // Счётчик кадров удержания Backspace для автоповтора
 	SelectedSegments []int               // Хранение текущего выбора для каждого слоя
 	ActiveLayer      int                 // Индекс текущего слоя
 	InputMode        InputMode
@@ -96,6 +98,8 @@ func (g *Game) StartTextInput(callback func(string)) {
 	g.InputMode = ModeTextInput
 	g.TextInput = ""
 	g.OnTextInputDone = callback
+	g.CursorTick = 0
+	g.BackspaceFrames = 0
 }
 
 func (g *Game) AwaitTextInput(isFirstWrite bool) string {
@@ -106,6 +110,8 @@ func (g *Game) AwaitTextInput(isFirstWrite bool) string {
 	g.InputMode = ModeTextInput
 	g.TextInput = ""
 	g.IsFirstWrite = isFirstWrite
+	g.CursorTick = 0
+	g.BackspaceFrames = 0
 
 	// Определяем колбэк для завершения ввода
 	g.OnTextInputDone = func(input string) {
@@ -222,6 +228,8 @@ func (g *Game) Update() error {
 			}
 		})
 	case ModeTextInput:
+		// Обновляем счётчик мигания курсора
+		g.CursorTick++
 
 		for _, char := range ebiten.InputChars() {
 			if char != '\n' && char != '\r' {
@@ -229,11 +237,26 @@ func (g *Game) Update() error {
 			}
 		}
 
-		// Обработка Backspace
-		if len(g.TextInput) > 0 {
-			g.handleKey(ebiten.KeyBackspace, func() {
-				g.TextInput = g.TextInput[:len(g.TextInput)-1]
-			})
+		// Обработка Backspace с автоповтором при удержании
+		if ebiten.IsKeyPressed(ebiten.KeyBackspace) {
+			g.BackspaceFrames++
+
+			const initialDelay = 15  // задержка перед началом автоповтора (~0.25с при 60 FPS)
+			const repeatInterval = 3 // интервал автоповтора (~20 удалений в секунду)
+
+			// Удаляем символ:
+			// - сразу при первом нажатии
+			// - затем через initialDelay кадров
+			// - потом с периодом repeatInterval кадров
+			if g.BackspaceFrames == 1 ||
+				(g.BackspaceFrames > initialDelay && (g.BackspaceFrames-initialDelay)%repeatInterval == 0) {
+				if len(g.TextInput) > 0 {
+					g.TextInput = g.TextInput[:len(g.TextInput)-1]
+				}
+			}
+		} else {
+			// Клавишу отпустили — сбрасываем счётчик, чтобы не было «залипания»
+			g.BackspaceFrames = 0
 		}
 
 		g.handleKeyCombination(ebiten.KeyV, ebiten.KeyControl, func() {

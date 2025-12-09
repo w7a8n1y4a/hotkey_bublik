@@ -301,11 +301,28 @@ func (g *Game) drawTextInputMessages(screen *ebiten.Image) {
 	DrawCenteredText(
 		screen,
 		fontFace,
-		g.TextInput,
+		g.getTextInputWithCursor(),
 		centerX,
 		centerY,
 		800,
 		4,
 		color.White,
 	)
+}
+
+// getTextInputWithCursor возвращает строку ввода с мигающим курсором
+func (g *Game) getTextInputWithCursor() string {
+	// Период мигания ~0.5 секунды при 60 тиках в секунду:
+	// 30 кадров курсор виден, 30 кадров скрыт.
+	const blinkPeriod = 60
+	const halfPeriod = blinkPeriod / 2
+
+	text := g.TextInput
+
+	if blinkPeriod > 0 && (g.CursorTick%blinkPeriod) < halfPeriod {
+		// Добавляем простой вертикальный курсор
+		text += "|"
+	}
+
+	return text
 }
