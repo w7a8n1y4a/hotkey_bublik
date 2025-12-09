@@ -2,124 +2,68 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
+	"image"
 	"os"
-    "encoding/base64"
-	"strings"
-    "image"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// UnifiedConfig объединяет переменные конфигурации и приложения
+// Config хранит только внутренние настройки приложения (геометрия и графика).
+// Все сетевые и платформенные настройки берутся из pepeunit_go_client.
 type Config struct {
-	// Переменные из env.json
-	PEPEUNIT_URL        string `json:"PEPEUNIT_URL"`
-	PEPEUNIT_APP_PREFIX string `json:"PEPEUNIT_APP_PREFIX"`
-	PEPEUNIT_API_ACTUAL_PREFIX string `json:"PEPEUNIT_API_ACTUAL_PREFIX"`
-	HTTP_TYPE           string `json:"HTTP_TYPE"`
-	MQTT_URL            string `json:"MQTT_URL"`
-	MQTT_PORT           int    `json:"MQTT_PORT"`
-	PEPEUNIT_TOKEN      string `json:"PEPEUNIT_TOKEN"`
-	SYNC_ENCRYPT_KEY    string `json:"SYNC_ENCRYPT_KEY"`
-	SECRET_KEY          string `json:"SECRET_KEY"`
-	PING_INTERVAL       int    `json:"PING_INTERVAL"`
-	STATE_SEND_INTERVAL int    `json:"STATE_SEND_INTERVAL"`
-    COMMIT_VERSION      string `json:"COMMIT_VERSION"`
-
 	// Внутренние переменные приложения
-	ScreenWidth       int            `json:"-"`
-	ScreenHeight      int            `json:"-"`
-	PickerCenterX     int            `json:"-"`
-	PickerCenterY     int            `json:"-"`
-	RadiusInner       int            `json:"RADIUS_INNER"`
-	ThickSegment      int            `json:"THICK_SEGMENT"`
-	BlurredBackground *image.NRGBA  `json:"-"`
-    UnitUUID          string         `json:"-"`
+	ScreenWidth       int          `json:"-"`
+	ScreenHeight      int          `json:"-"`
+	PickerCenterX     int          `json:"-"`
+	PickerCenterY     int          `json:"-"`
+	RadiusInner       int          `json:"RADIUS_INNER"`
+	ThickSegment      int          `json:"THICK_SEGMENT"`
+	BlurredBackground *image.NRGBA `json:"-"`
 }
 
-type Payload struct {
-	UUID string `json:"uuid"`
-	Type string `json:"type"`
-}
-
-// Глобальная переменная для объединённой конфигурации
+// Глобальная переменная для конфигурации
 var config Config
+
+// вспомогательная структура только для чтения значений бублика из env.json
+type donutEnv struct {
+	RadiusInner  int `json:"RADIUS_INNER"`
+	ThickSegment int `json:"THICK_SEGMENT"`
+}
 
 // Инициализация пакета
 func init() {
-    config.ScreenWidth, config.ScreenHeight = ebiten.Monitor().Size()
+	// Геометрия экрана
+	config.ScreenWidth, config.ScreenHeight = ebiten.Monitor().Size()
 	config.PickerCenterX, config.PickerCenterY = config.ScreenWidth/2, config.ScreenHeight/2
- 
+	// Значения по умолчанию для радиуса бублика, если в env.json их нет
+	config.RadiusInner = 200
+	config.ThickSegment = 50
 
-	// Загрузка конфигурации из env.json
-	if err := loadConfigFromFile("env.json"); err != nil {
-		panic(err) // Если не удалось загрузить конфигурацию, программа завершится с ошибкой
-	}
+	// Пытаемся загрузить RADIUS_INNER и THICK_SEGMENT из общего env.json,
+	// остальные переменные читает pepeunit_go_client.
+	_ = loadDonutConfigFromFile("env.json")
 }
 
-func getUuidFromToken(jwt string) (string, error) {
-	// Разделяем JWT на части
-	parts := strings.Split(jwt, ".")
-	if len(parts) != 3 {
-		return "", errors.New("неверный формат JWT")
-	}
-
-	// Декодируем полезную нагрузку (вторая часть)
-	payloadBase64 := parts[1]
-	payloadBytes, err := base64.RawURLEncoding.DecodeString(payloadBase64)
-	if err != nil {
-		return "", errors.New("ошибка декодирования Base64: " + err.Error())
-	}
-
-	// Распарсим JSON в структуру
-	var payload Payload
-	err = json.Unmarshal(payloadBytes, &payload)
-	if err != nil {
-		return "", errors.New("ошибка парсинга JSON: " + err.Error())
-	}
-
-	// Возвращаем UUID
-	return payload.UUID, nil
-}
-
-// loadConfigFromFile загружает конфигурацию из файла env.json
-func loadConfigFromFile(filePath string) error {
-	// Проверка на существование файла
-	if _, err := os.Stat(filePath); errors.Is(err, os.ErrNotExist) {
-		return errors.New("файл env.json не найден")
-	}
-
-	// Открытие файла
+// loadDonutConfigFromFile загружает только параметры бублика из env.json
+func loadDonutConfigFromFile(filePath string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
+		// env.json может отсутствовать до первой синхронизации – это не критично
 		return err
 	}
 	defer file.Close()
 
-	// Декодирование JSON
+	var env donutEnv
 	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&config); err != nil {
+	if err := decoder.Decode(&env); err != nil {
 		return err
 	}
 
-    config.UnitUUID, err = getUuidFromToken(config.PEPEUNIT_TOKEN)
-
-	// Проверка обязательных полей
-	return validateConfig()
-}
-
-// validateConfig проверяет, что все обязательные поля присутствуют
-func validateConfig() error {
-	if config.PEPEUNIT_URL == "" ||
-		config.HTTP_TYPE == "" ||
-		config.MQTT_URL == "" ||
-		config.PEPEUNIT_TOKEN == "" ||
-		config.SYNC_ENCRYPT_KEY == "" ||
-		config.SECRET_KEY == "" ||
-		config.PING_INTERVAL == 0 ||
-		config.STATE_SEND_INTERVAL == 0 {
-		return errors.New("обязательные переменные отсутствуют или некорректны в env.json")
+	if env.RadiusInner > 0 {
+		config.RadiusInner = env.RadiusInner
+	}
+	if env.ThickSegment > 0 {
+		config.ThickSegment = env.ThickSegment
 	}
 	return nil
 }
@@ -133,4 +77,3 @@ func GetConfig() Config {
 func UpdateConfig(updateFunc func(cfg *Config)) {
 	updateFunc(&config)
 }
-

@@ -9,12 +9,12 @@ import (
 	"image"
 	"image/png"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"picker/internal/config"
 	"picker/internal/game"
 	"picker/internal/graphics"
-	"picker/internal/queries"
 
 	"time"
 
@@ -152,9 +152,75 @@ func loadIcon(data []byte) ([]byte, error) {
 	return icon, nil
 }
 
+// fetchUnits загружает список Unit и UnitNode через REST‑клиент pepeunit.
+func fetchUnits(client *pepeunit.PepeunitClient) (game.UnitsByNodesResponse, error) {
+	if client == nil || client.GetRESTClient() == nil {
+		return game.UnitsByNodesResponse{}, fmt.Errorf("REST client is not initialized")
+	}
+	if client.GetSchema() == nil {
+		return game.UnitsByNodesResponse{}, fmt.Errorf("schema is not initialized")
+	}
+
+	// Находим URL output_units_nodes/pepeunit в schema.json
+	outputTopics := client.GetSchema().GetOutputTopic()
+	topicURLs, ok := outputTopics["output_units_nodes/pepeunit"]
+	if !ok || len(topicURLs) == 0 {
+		return game.UnitsByNodesResponse{}, fmt.Errorf("output_units_nodes/pepeunit not found in schema")
+	}
+	topicURL := topicURLs[0]
+
+	// Валидация URL (на всякий случай)
+	if _, err := url.Parse(topicURL); err != nil {
+		return game.UnitsByNodesResponse{}, fmt.Errorf("invalid topic URL in schema: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// 1. Получаем UnitNodes по output topic
+	rawNodes, err := client.GetRESTClient().GetInputByOutput(ctx, topicURL, 100, 0)
+	if err != nil {
+		return game.UnitsByNodesResponse{}, err
+	}
+	nodesBytes, err := json.Marshal(rawNodes)
+	if err != nil {
+		return game.UnitsByNodesResponse{}, err
+	}
+
+	var unitNodesResp game.UnitNodesResponse
+	if err := json.Unmarshal(nodesBytes, &unitNodesResp); err != nil {
+		return game.UnitsByNodesResponse{}, err
+	}
+
+	if unitNodesResp.Count == 0 {
+		return game.UnitsByNodesResponse{}, fmt.Errorf("no edges found")
+	}
+
+	unitNodeUUIDs := make([]string, 0, len(unitNodesResp.UnitNodes))
+	for _, item := range unitNodesResp.UnitNodes {
+		unitNodeUUIDs = append(unitNodeUUIDs, item.UUID)
+	}
+
+	// 2. Получаем Units по UUID узлов
+	rawUnits, err := client.GetRESTClient().GetUnitsByNodes(ctx, unitNodeUUIDs, 100, 0)
+	if err != nil {
+		return game.UnitsByNodesResponse{}, err
+	}
+	unitsBytes, err := json.Marshal(rawUnits)
+	if err != nil {
+		return game.UnitsByNodesResponse{}, err
+	}
+
+	var unitsResp game.UnitsByNodesResponse
+	if err := json.Unmarshal(unitsBytes, &unitsResp); err != nil {
+		return game.UnitsByNodesResponse{}, err
+	}
+
+	return unitsResp, nil
+}
+
 // Function to prepare the game setup
 func prepareGame(client *pepeunit.PepeunitClient) (*game.Game, error) {
-	data, err := queries.GetUnitsByNodesQuery()
+	data, err := fetchUnits(client)
 	if err != nil {
 		return nil, fmt.Errorf("Ошибка при получении данных: %v", err)
 	}
@@ -163,13 +229,17 @@ func prepareGame(client *pepeunit.PepeunitClient) (*game.Game, error) {
 	config.UpdateConfig(func(cfg *config.Config) {
 		cfg.BlurredBackground = graphics.BlurScreenshot()
 	})
-	// Load state from REST storage via pepeunit client
+	// Load state from Pepeunit storage via high-level client API
 	stateData := make(map[string][][]string)
-	if client.GetRESTClient() != nil {
-		ctx := context.Background()
-		stateStr, err := client.GetRESTClient().GetStateStorage(ctx)
-		if err == nil && stateStr != "" && stateStr != "\"\"" {
-			_ = json.Unmarshal([]byte(stateStr), &stateData)
+	ctx := context.Background()
+	if stateStr, err := client.GetStateStorage(ctx); err == nil && stateStr != "" && stateStr != "\"\"" {
+		// Основной путь: состояние хранится как обычный JSON-объект
+		if err := json.Unmarshal([]byte(stateStr), &stateData); err != nil {
+			// Fallback: состояние может быть сохранено как JSON-строка внутри строки
+			var wrapped string
+			if err2 := json.Unmarshal([]byte(stateStr), &wrapped); err2 == nil && wrapped != "" {
+				_ = json.Unmarshal([]byte(wrapped), &stateData)
+			}
 		}
 	}
 

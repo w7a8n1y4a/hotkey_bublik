@@ -19,7 +19,6 @@ import (
 
 	"picker/internal/config"
 	"picker/internal/graphics"
-	"picker/internal/queries"
 
 	pepeunit "github.com/w7a8n1y4a/pepeunit_go_client"
 )
@@ -36,7 +35,7 @@ var fontData []byte
 
 type Game struct {
 	PepeClient       *pepeunit.PepeunitClient
-	Units            queries.UnitsByNodesResponse
+	Units            UnitsByNodesResponse
 	StateData        map[string][][]string
 	KeyDownMap       map[ebiten.Key]bool // Состояние кнопок
 	SelectedSegments []int               // Хранение текущего выбора для каждого слоя
@@ -263,8 +262,8 @@ func (g *Game) Update() error {
 							if stateData != nil {
 
 								fmt.Println(stateData[g.SelectedSegments[2]-1])
-								// TODO: change /pepeunit logic to adaptive without /pepeunit
-								topicName := cfg.PEPEUNIT_URL + "/" + selectedNode.UUID + "/pepeunit"
+								settings := g.PepeClient.GetSettings()
+								topicName := settings.PU_DOMAIN + "/" + selectedNode.UUID + "/pepeunit"
 								fmt.Println(topicName)
 								if g.PepeClient != nil && g.PepeClient.GetMQTTClient() != nil {
 									err := g.PepeClient.GetMQTTClient().Publish(topicName, stateData[g.SelectedSegments[2]-1][1])
