@@ -2,20 +2,13 @@ package game
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"image/color"
-	"log"
 	"math"
-	"strings"
 
 	"github.com/atotto/clipboard"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/text"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/opentype"
 
 	"picker/internal/config"
 	"picker/internal/graphics"
@@ -29,9 +22,6 @@ const (
 	ModeGame InputMode = iota
 	ModeTextInput
 )
-
-//go:embed fonts/cornerita_black.ttf
-var fontData []byte
 
 type Game struct {
 	PepeClient       *pepeunit.PepeunitClient
@@ -99,59 +89,6 @@ func (g *Game) RemoveOption(unitNodeUUID, optionName string) error {
 	}
 	g.StateData[unitNodeUUID] = filtered
 	return g.saveStateRemote()
-}
-
-// LoadFont загружает шрифт из файла
-func LoadFont(size float64) font.Face {
-
-	tt, err := opentype.Parse(fontData)
-	if err != nil {
-		log.Fatalf("failed to parse font: %v", err)
-	}
-
-	face, err := opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    size,
-		DPI:     72,
-		Hinting: font.HintingFull,
-	})
-	if err != nil {
-		log.Fatalf("failed to create font face: %v", err)
-	}
-
-	return face
-}
-
-// DrawCenteredText отрисовывает большой текст с центрированием
-func DrawCenteredText(screen *ebiten.Image, face font.Face, textContent string, x, y, maxWidth, lineSpacing int, color color.Color) {
-	lines := wrapText(face, textContent, maxWidth)
-	totalHeight := len(lines) * (text.BoundString(face, "A").Dy() + lineSpacing)
-	startY := y - totalHeight/2
-
-	for i, line := range lines {
-		lineWidth := text.BoundString(face, line).Dx()
-		startX := x - lineWidth/2
-		text.Draw(screen, line, face, startX, startY+(i*(text.BoundString(face, "A").Dy()+lineSpacing)), color)
-	}
-}
-
-// wrapText разбивает текст на строки, которые помещаются в указанную ширину
-func wrapText(face font.Face, textContent string, maxWidth int) []string {
-	words := strings.Fields(textContent)
-	lines := []string{}
-	line := ""
-
-	for _, word := range words {
-		testLine := line + " " + word
-		if text.BoundString(face, strings.TrimSpace(testLine)).Dx() > maxWidth {
-			lines = append(lines, strings.TrimSpace(line))
-			line = word
-		} else {
-			line = testLine
-		}
-	}
-	lines = append(lines, strings.TrimSpace(line))
-
-	return lines
 }
 
 // Метод для переключения в режим ввода текста
@@ -354,7 +291,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	cfg := config.GetConfig()
 	if cfg.BlurredBackground == nil {
-		ebitenutil.DebugPrint(screen, "Загрузка размытого фона...")
+		g.drawBlurLoadingMessage(screen)
 		return
 	}
 	screen.DrawImage(ebiten.NewImageFromImage(cfg.BlurredBackground), nil)
@@ -411,100 +348,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 					clr,
 				)
 			}
-			if g.SelectedSegments[layerIndex] >= 0 && len(items) > g.SelectedSegments[layerIndex] {
-				var fontSize int = 24
-				var centerY int = 0
-				fontFace := LoadFont(float64(fontSize)) // Укажите путь и размер шрифта
-
-				centerX := int(cfg.ScreenWidth / 2)
-				centerUnit := int(cfg.ScreenHeight/2) - int(float64(fontSize)/2)
-				centerUnitNode := int(cfg.ScreenHeight/2) + int(float64(fontSize)*1.5)
-				centerOption := int(cfg.ScreenHeight / 2)
-
-				optionExternalLen := int(float64(cfg.RadiusInner) + float64(cfg.ThickSegment)*3 + float64(fontSize)*float64(layerIndex))
-
-				switch layerIndex {
-				case 0:
-					centerY = centerUnit
-				case 1:
-					centerY = centerUnitNode
-				case 2:
-					centerY = centerOption - optionExternalLen + fontSize
-				}
-				// _, _, _ = fontFace, centerX, centerY
-				// fmt.Println(items[g.SelectedSegments[layerIndex]])
-				DrawCenteredText(
-					screen,
-					fontFace,
-					items[g.SelectedSegments[layerIndex]][0],
-					centerX,
-					centerY,
-					cfg.RadiusInner,
-					4,
-					color.White,
-				)
-
-				if len(items[g.SelectedSegments[layerIndex]]) == 2 {
-					DrawCenteredText(
-						screen,
-						fontFace,
-						items[g.SelectedSegments[layerIndex]][1],
-						centerX,
-						centerOption+optionExternalLen+20,
-						800,
-						4,
-						color.White,
-					)
-
-				}
-
-			}
+			g.drawGameModeMessages(screen, layerIndex, items)
 		}
 	case ModeTextInput:
-		fontFace := LoadFont(24)    // Укажите путь и размер шрифта
-		fontBigFace := LoadFont(32) // Укажите путь и размер шрифта
-		centerX := cfg.ScreenWidth / 2
-		centerY := cfg.ScreenHeight / 2
-
-		var targetText string = "Write name Option"
-
-		if g.IsFirstWrite != true {
-			targetText = "Write UnitNode state"
-		}
-
-		DrawCenteredText(
-			screen,
-			fontBigFace,
-			targetText,
-			centerX,
-			centerY/3,
-			300,
-			4,
-			color.White,
-		)
-
-		DrawCenteredText(
-			screen,
-			fontFace,
-			"Enter text or <CTRL + V>",
-			centerX,
-			centerY/2,
-			300,
-			4,
-			color.White,
-		)
-
-		DrawCenteredText(
-			screen,
-			fontFace,
-			g.TextInput,
-			centerX,
-			centerY,
-			800,
-			4,
-			color.White,
-		)
-
+		g.drawTextInputMessages(screen)
 	}
 }
 
