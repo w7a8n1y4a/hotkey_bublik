@@ -8,7 +8,7 @@ require (
 	github.com/getlantern/systray v1.2.2
 	github.com/hajimehoshi/ebiten/v2 v2.8.5
 	github.com/kbinani/screenshot v0.0.0-20240820160931-a8a2c5d0e191
-	github.com/w7a8n1y4a/pepeunit_go_client v0.10.1
+	github.com/w7a8n1y4a/pepeunit_go_client v1.0.0
 	golang.design/x/hotkey v0.4.1
 	golang.org/x/image v0.23.0
 )

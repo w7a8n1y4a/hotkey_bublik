@@ -43,6 +43,8 @@ func main() {
 		log.Fatalf("init pepeunit client failed: %v", err)
 	}
 
+	log.Println("App starting...")
+
 	ctx := context.Background()
 	if pepeClient.GetMQTTClient() != nil {
 		if err := pepeClient.GetMQTTClient().Connect(ctx); err != nil {
@@ -75,6 +77,8 @@ func main() {
 
 // Register the global hotkey (Ctrl + Shift + H)
 func registerGlobalHotkey(client *pepeunit.PepeunitClient) {
+	log.Println("Trying to register global hotkey...")
+
 	hk := hotkey.New([]hotkey.Modifier{hotkey.ModCtrl, hotkey.ModShift}, hotkey.KeyH)
 
 	err := hk.Register()
@@ -102,6 +106,8 @@ func registerGlobalHotkey(client *pepeunit.PepeunitClient) {
 
 // Function for handling tray menu and actions
 func onReady(icon []byte, client *pepeunit.PepeunitClient) {
+	log.Println("systray onReady called")
+
 	// Set tray icon and menu options
 	systray.SetIcon(icon)
 	systray.SetTitle("Tray Example")
