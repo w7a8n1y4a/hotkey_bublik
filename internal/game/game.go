@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"math"
 	"net/url"
+	"os/exec"
 
 	"github.com/atotto/clipboard"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -287,6 +288,34 @@ func (g *Game) Update() error {
 			segmentAngle := 2 * math.Pi / float64(currentLayerLength)
 			g.SelectedSegments[g.ActiveLayer] = int(angle/segmentAngle) % currentLayerLength
 		}
+
+		// Клавиша Space на втором бублике открывает страницу unit-node в браузере.
+		g.handleKey(ebiten.KeySpace, func() {
+			if g.ActiveLayer != 1 || g.PepeClient == nil {
+				return
+			}
+
+			unitIdx := g.SelectedSegments[0] - 1
+			selectedNodeIdx := g.SelectedSegments[1]
+
+			if unitIdx < 0 || unitIdx >= len(g.Units.Units) {
+				return
+			}
+			selectedUnit := g.Units.Units[unitIdx]
+			if selectedNodeIdx < 0 || selectedNodeIdx >= len(selectedUnit.UnitNodes) {
+				return
+			}
+			selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
+
+			settings := g.PepeClient.GetSettings()
+			unitURL := fmt.Sprintf("%s://%s/unit-node/%s", settings.PU_HTTP_TYPE, settings.PU_DOMAIN, selectedNode.UUID)
+
+			// Для Linux используем xdg-open; по аналогии можно добавить поддержку Windows/Mac.
+			go func(url string) {
+				cmd := exec.Command("xdg-open", url)
+				_ = cmd.Start()
+			}(unitURL)
+		})
 
 		g.handleKey(ebiten.KeyDelete, func() {
 			if g.ActiveLayer == 2 {
