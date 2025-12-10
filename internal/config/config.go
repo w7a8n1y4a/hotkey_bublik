@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -23,6 +24,12 @@ type Config struct {
 // Глобальная переменная для конфигурации
 var config Config
 
+// Путь до env.json, откуда берём RADIUS_INNER и THICK_SEGMENT.
+var envFilePath = "env.json"
+
+// Время последней успешной загрузки параметров бублика из env.json.
+var lastEnvModTime time.Time
+
 // вспомогательная структура только для чтения значений бублика из env.json
 type donutEnv struct {
 	RadiusInner  int `json:"RADIUS_INNER"`
@@ -40,7 +47,7 @@ func init() {
 
 	// Пытаемся загрузить RADIUS_INNER и THICK_SEGMENT из общего env.json,
 	// остальные переменные читает pepeunit_go_client.
-	_ = loadDonutConfigFromFile("env.json")
+	_ = loadDonutConfigFromFile(envFilePath)
 }
 
 // loadDonutConfigFromFile загружает только параметры бублика из env.json
@@ -64,11 +71,25 @@ func loadDonutConfigFromFile(filePath string) error {
 	if env.ThickSegment > 0 {
 		config.ThickSegment = env.ThickSegment
 	}
+
+	// Обновляем отметку времени успешной загрузки.
+	if info, statErr := os.Stat(filePath); statErr == nil {
+		lastEnvModTime = info.ModTime()
+	}
 	return nil
 }
 
 // GetConfig возвращает текущую объединённую конфигурацию
 func GetConfig() Config {
+	// При каждом запросе проверяем, не изменился ли env.json.
+	// Если изменился — перечитываем только параметры бублика.
+	if info, err := os.Stat(envFilePath); err == nil {
+		// Если файл новый или его время модификации больше сохранённого — перезагружаем.
+		if lastEnvModTime.IsZero() || info.ModTime().After(lastEnvModTime) {
+			_ = loadDonutConfigFromFile(envFilePath)
+		}
+	}
+
 	return config
 }
 

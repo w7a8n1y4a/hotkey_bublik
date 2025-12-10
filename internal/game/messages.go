@@ -22,9 +22,9 @@ import (
 var fontData []byte
 
 var (
-	baseFont   *opentype.Font
-	fontCache  = make(map[float64]font.Face)
-	fontMu     sync.Mutex
+	baseFont  *opentype.Font
+	fontCache = make(map[float64]font.Face)
+	fontMu    sync.Mutex
 )
 
 // LoadFont загружает и кэширует шрифт нужного размера.
