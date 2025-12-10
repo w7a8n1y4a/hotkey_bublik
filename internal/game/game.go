@@ -26,6 +26,27 @@ const (
 	ModeTextInput
 )
 
+// Палитра базовых цветов Unit, близкая к Google Material Design.
+// Используется для первого бублика: цвет сегмента определяется по индексу Unit через остаток от деления на 10.
+var unitColors = []color.RGBA{
+	{0xF4, 0x43, 0x36, 0xFF}, // 0 → красный      (#F44336)
+	{0xE9, 0x1E, 0x63, 0xFF}, // 1 → розовый      (#E91E63)
+	{0x9C, 0x27, 0xB0, 0xFF}, // 2 → фиолетовый   (#9C27B0)
+	{0x3F, 0x51, 0xB5, 0xFF}, // 3 → индиго       (#3F51B5)
+	{0x21, 0x96, 0xF3, 0xFF}, // 4 → синий        (#2196F3)
+	{0x03, 0xA9, 0xF4, 0xFF}, // 5 → голубой      (#03A9F4)
+	{0x00, 0x96, 0x88, 0xFF}, // 6 → бирюзовый    (#009688)
+	{0x4C, 0xAF, 0x50, 0xFF}, // 7 → зелёный      (#4CAF50)
+	{0xFF, 0x98, 0x00, 0xFF}, // 8 → оранжевый    (#FF9800)
+	{0xFF, 0x57, 0x22, 0xFF}, // 9 → тёплый оранж (#FF5722)
+}
+
+// Тёмный дефолтный цвет сегмента для всех слоёв.
+var defaultSegmentColor = color.RGBA{0x42, 0x42, 0x42, 0xFF} // #424242
+
+// Цвет дефолтного сегмента "Обновить список юнитов" при наведении.
+var refreshSegmentColor = color.RGBA{0x60, 0x7D, 0x8B, 0xFF} // #607D8B
+
 type Game struct {
 	PepeClient       *pepeunit.PepeunitClient
 	Units            UnitsByNodesResponse
@@ -673,15 +694,54 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				}
 			}
 
+			if len(items) == 0 {
+				continue
+			}
+
 			segmentAngle := 2 * math.Pi / float64(len(items))
 			layerOffset := float64(layerIndex) * 60
+
+			// Цвет выбранного Unit для всех бубликов.
+			selectedUnitColor := defaultSegmentColor
+			unitIdx := g.SelectedSegments[0] - 1
+			if unitIdx >= 0 && unitIdx < len(g.Units.Units) && len(unitColors) > 0 {
+				selectedUnitColor = unitColors[unitIdx%len(unitColors)]
+			}
+
 			for i := range items {
 				angleStart := float64(i) * segmentAngle
 				angleEnd := angleStart + segmentAngle
-				clr := color.RGBA{176, 190, 197, 255}
-				if i == g.SelectedSegments[layerIndex] {
-					clr = color.RGBA{255, 61, 0, 255}
+
+				var clr color.Color = defaultSegmentColor
+
+				switch layerIndex {
+				case 0:
+					// Первый бублик:
+					// - все сегменты по умолчанию тёмно‑серые;
+					// - 0‑й сегмент "Обновить список юнитов" при наведении
+					//   подсвечивается отдельным цветом;
+					// - остальные выбранные сегменты подсвечиваются цветом своего Unit.
+					clr = defaultSegmentColor
+					if i == 0 && i == g.SelectedSegments[0] {
+						clr = refreshSegmentColor
+					} else if i > 0 && i == g.SelectedSegments[0] && len(unitColors) > 0 {
+						uIdx := (i - 1) % len(unitColors)
+						if uIdx < 0 {
+							uIdx = 0
+						}
+						clr = unitColors[uIdx]
+					}
+				case 1, 2:
+					// Второй и третий бублики:
+					// - по умолчанию все сегменты тёмно‑серые;
+					// - выбранный сегмент (по индексу SelectedSegments[layerIndex])
+					//   подсвечивается цветом выбранного Unit с первого бублика.
+					clr = defaultSegmentColor
+					if i == g.SelectedSegments[layerIndex] {
+						clr = selectedUnitColor
+					}
 				}
+
 				graphics.DrawSegment(
 					screen,
 					cfg.PickerCenterX,
