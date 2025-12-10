@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -20,14 +21,32 @@ import (
 //go:embed fonts/cornerita_black.ttf
 var fontData []byte
 
-// LoadFont загружает шрифт из файла
+var (
+	baseFont   *opentype.Font
+	fontCache  = make(map[float64]font.Face)
+	fontMu     sync.Mutex
+)
+
+// LoadFont загружает и кэширует шрифт нужного размера.
+// Парсинг TTF и создание Face — тяжёлая операция, поэтому мы делаем её один раз
+// для каждого размера и переиспользуем результат между кадрами.
 func LoadFont(size float64) font.Face {
-	tt, err := opentype.Parse(fontData)
-	if err != nil {
-		log.Fatalf("failed to parse font: %v", err)
+	fontMu.Lock()
+	defer fontMu.Unlock()
+
+	if face, ok := fontCache[size]; ok {
+		return face
 	}
 
-	face, err := opentype.NewFace(tt, &opentype.FaceOptions{
+	if baseFont == nil {
+		tt, err := opentype.Parse(fontData)
+		if err != nil {
+			log.Fatalf("failed to parse font: %v", err)
+		}
+		baseFont = tt
+	}
+
+	face, err := opentype.NewFace(baseFont, &opentype.FaceOptions{
 		Size:    size,
 		DPI:     72,
 		Hinting: font.HintingFull,
@@ -36,6 +55,7 @@ func LoadFont(size float64) font.Face {
 		log.Fatalf("failed to create font face: %v", err)
 	}
 
+	fontCache[size] = face
 	return face
 }
 
@@ -315,9 +335,15 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 			if selectedNodeIdx < len(selectedUnit.UnitNodes) {
 				selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
 
-				nodeJSON, err := json.MarshalIndent(selectedNode, "", "    ")
-				if err != nil {
-					return
+				// Кэшируем JSON‑представление UnitNode, чтобы не сериализовать каждый кадр.
+				if g.lastNodeUnitIdx != selectedUnitIdx || g.lastNodeUnitNodeIdx != selectedNodeIdx || g.lastNodeInfoJSON == "" {
+					nodeJSON, err := json.MarshalIndent(selectedNode, "", "    ")
+					if err != nil {
+						return
+					}
+					g.lastNodeInfoJSON = string(nodeJSON)
+					g.lastNodeUnitIdx = selectedUnitIdx
+					g.lastNodeUnitNodeIdx = selectedNodeIdx
 				}
 
 				labelText := "UnitNode Info:"
@@ -342,7 +368,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 				DrawLeftAlignedText(
 					screen,
 					fontFace,
-					string(nodeJSON),
+					g.lastNodeInfoJSON,
 					valueTextX,
 					valueTextY,
 					maxWidth,

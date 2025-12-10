@@ -7,6 +7,17 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+var whiteTexture *ebiten.Image
+
+// getWhiteTexture возвращает общую белую текстуру 1x1, создавая её один раз лениво.
+func getWhiteTexture() *ebiten.Image {
+	if whiteTexture == nil {
+		whiteTexture = ebiten.NewImage(1, 1)
+		whiteTexture.Fill(color.White)
+	}
+	return whiteTexture
+}
+
 func DrawSegment(screen *ebiten.Image, x, y, rInner, rOuter int, angleStart, angleEnd float64, clr color.Color) {
 	const steps = 100
 	dTheta := (angleEnd - angleStart) / steps
@@ -41,8 +52,6 @@ func DrawSegment(screen *ebiten.Image, x, y, rInner, rOuter int, angleStart, ang
 		indices = append(indices, uint16(2*i), uint16(2*i+1), uint16(2*i+2), uint16(2*i+1), uint16(2*i+2), uint16(2*i+3))
 	}
 
-	texture := ebiten.NewImage(1, 1)
-	texture.Fill(color.White)
-	screen.DrawTriangles(points, indices, texture, nil)
+	screen.DrawTriangles(points, indices, getWhiteTexture(), nil)
 }
 

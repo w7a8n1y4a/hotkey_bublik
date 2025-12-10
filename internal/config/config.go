@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"image"
 	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -16,9 +15,9 @@ type Config struct {
 	ScreenHeight      int          `json:"-"`
 	PickerCenterX     int          `json:"-"`
 	PickerCenterY     int          `json:"-"`
-	RadiusInner       int          `json:"RADIUS_INNER"`
-	ThickSegment      int          `json:"THICK_SEGMENT"`
-	BlurredBackground *image.NRGBA `json:"-"`
+	RadiusInner       int            `json:"RADIUS_INNER"`
+	ThickSegment      int            `json:"THICK_SEGMENT"`
+	BlurredBackground *ebiten.Image  `json:"-"`
 }
 
 // Глобальная переменная для конфигурации

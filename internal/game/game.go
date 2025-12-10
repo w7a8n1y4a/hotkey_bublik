@@ -36,6 +36,10 @@ type Game struct {
 	TextInput        string
 	OnTextInputDone  func(string)
 	IsFirstWrite     bool
+	// Кэш JSON‑представления выбранного UnitNode для уменьшения аллокаций в отрисовке.
+	lastNodeInfoJSON    string
+	lastNodeUnitIdx     int
+	lastNodeUnitNodeIdx int
 }
 
 func (g *Game) GetState() map[string][][]string {
@@ -196,7 +200,9 @@ func (g *Game) Update() error {
 				selectedUnit := g.Units.Units[g.SelectedSegments[0]]
 				if g.SelectedSegments[1] < len(selectedUnit.UnitNodes) {
 					selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
-					stateData := g.GetState()[selectedNode.UUID]
+					// Внутри Game нет необходимости копировать всё состояние,
+					// используем прямой доступ к данным, чтобы избежать лишних аллокаций.
+					stateData := g.StateData[selectedNode.UUID]
 					currentLayerLength = len(stateData) + 1
 				}
 			}
@@ -215,7 +221,7 @@ func (g *Game) Update() error {
 					selectedUnit := g.Units.Units[selectedUnitIdx]
 					if selectedNodeIdx < len(selectedUnit.UnitNodes) {
 						selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
-						stateData := g.GetState()[selectedNode.UUID]
+						stateData := g.StateData[selectedNode.UUID]
 						if g.SelectedSegments[2] != 0 && g.SelectedSegments[2]-1 < len(stateData) {
 							optionName := stateData[g.SelectedSegments[2]-1][0]
 							// Используем uгRemoveOption для удаления опции
@@ -240,7 +246,7 @@ func (g *Game) Update() error {
 					selectedUnit := g.Units.Units[selectedUnitIdx]
 					if selectedNodeIdx < len(selectedUnit.UnitNodes) {
 						selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
-						stateData := g.GetState()[selectedNode.UUID]
+						stateData := g.StateData[selectedNode.UUID]
 						if g.SelectedSegments[2] == 0 {
 							fmt.Println("This is Add button")
 							go func() {
@@ -411,7 +417,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.drawBlurLoadingMessage(screen)
 		return
 	}
-	screen.DrawImage(ebiten.NewImageFromImage(cfg.BlurredBackground), nil)
+	// Размытый фон уже закеширован как *ebiten.Image,
+	// избегаем создания нового ebiten.Image каждый кадр.
+	screen.DrawImage(cfg.BlurredBackground, nil)
 
 	switch g.InputMode {
 	case ModeGame:
@@ -434,13 +442,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 					selectedUnit := g.Units.Units[g.SelectedSegments[0]]
 					if g.SelectedSegments[1] < len(selectedUnit.UnitNodes) {
 						selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
-						stateData := g.GetState()[selectedNode.UUID]
+						stateData := g.StateData[selectedNode.UUID]
 
 						items = append(items, []string{"Create New Option"})
 
-						for _, value := range stateData {
-							items = append(items, value)
-						}
+						items = append(items, stateData...)
 					}
 				}
 			}
