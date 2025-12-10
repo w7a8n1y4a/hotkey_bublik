@@ -289,32 +289,51 @@ func (g *Game) Update() error {
 			g.SelectedSegments[g.ActiveLayer] = int(angle/segmentAngle) % currentLayerLength
 		}
 
-		// Клавиша Space на втором бублике открывает страницу unit-node в браузере.
+		// Клавиша Space:
+		// - на первом бублике открывает страницу unit в браузере;
+		// - на втором бублике открывает страницу unit-node в браузере.
 		g.handleKey(ebiten.KeySpace, func() {
-			if g.ActiveLayer != 1 || g.PepeClient == nil {
-				return
-			}
-
-			unitIdx := g.SelectedSegments[0] - 1
-			selectedNodeIdx := g.SelectedSegments[1]
-
-			if unitIdx < 0 || unitIdx >= len(g.Units.Units) {
-				return
-			}
-			selectedUnit := g.Units.Units[unitIdx]
-			if selectedNodeIdx < 0 || selectedNodeIdx >= len(selectedUnit.UnitNodes) {
-				return
-			}
-			selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
-
 			settings := g.PepeClient.GetSettings()
-			unitURL := fmt.Sprintf("%s://%s/unit-node/%s", settings.PU_HTTP_TYPE, settings.PU_DOMAIN, selectedNode.UUID)
+			if g.PepeClient == nil {
+				return
+			}
 
-			// Для Linux используем xdg-open; по аналогии можно добавить поддержку Windows/Mac.
-			go func(url string) {
-				cmd := exec.Command("xdg-open", url)
-				_ = cmd.Start()
-			}(unitURL)
+			switch g.ActiveLayer {
+			case 0:
+				// Первый бублик: открываем страницу Unit.
+				unitIdx := g.SelectedSegments[0] - 1 // 0‑й сегмент — "Обновить список юнитов"
+				if unitIdx < 0 || unitIdx >= len(g.Units.Units) {
+					return
+				}
+				selectedUnit := g.Units.Units[unitIdx]
+				unitURL := fmt.Sprintf("%s://%s/unit/%s", settings.PU_HTTP_TYPE, settings.PU_DOMAIN, selectedUnit.UUID)
+
+				go func(url string) {
+					cmd := exec.Command("xdg-open", url)
+					_ = cmd.Start()
+				}(unitURL)
+
+			case 1:
+				// Второй бублик: открываем страницу UnitNode.
+				unitIdx := g.SelectedSegments[0] - 1
+				selectedNodeIdx := g.SelectedSegments[1]
+
+				if unitIdx < 0 || unitIdx >= len(g.Units.Units) {
+					return
+				}
+				selectedUnit := g.Units.Units[unitIdx]
+				if selectedNodeIdx < 0 || selectedNodeIdx >= len(selectedUnit.UnitNodes) {
+					return
+				}
+				selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
+
+				unitNodeURL := fmt.Sprintf("%s://%s/unit-node/%s", settings.PU_HTTP_TYPE, settings.PU_DOMAIN, selectedNode.UUID)
+
+				go func(url string) {
+					cmd := exec.Command("xdg-open", url)
+					_ = cmd.Start()
+				}(unitNodeURL)
+			}
 		})
 
 		g.handleKey(ebiten.KeyDelete, func() {
