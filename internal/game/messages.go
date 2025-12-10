@@ -378,6 +378,70 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 			}
 		}
 	}
+
+	// Подсказка о переходе в Pepeunit Instance по клавише SPACE.
+	// Показывается только на тех слоях и сегментах, где переход действительно возможен.
+	switch {
+	// Первый бублик: переход на страницу Unit.
+	case g.ActiveLayer == 0 && layerIndex == 0:
+		seg := g.SelectedSegments[0]
+		// 0‑й сегмент — "Обновить список юнитов", переход по SPACE там недоступен.
+		if seg <= 0 || seg > len(g.Units.Units) {
+			break
+		}
+		unit := g.Units.Units[seg-1]
+		hintText := "SPACE: открыть Unit \"" + strings.TrimSpace(unit.Name) + "\" в Pepeunit Instance"
+
+		hintWidth := text.BoundString(fontFace, hintText).Dx()
+		hintX := cfg.ScreenWidth/2 - hintWidth/2
+		hintY := cfg.ScreenHeight - fontSize*2
+		if hintY < 0 {
+			hintY = fontSize
+		}
+		text.Draw(
+			screen,
+			hintText,
+			fontFace,
+			hintX,
+			hintY,
+			color.RGBA{200, 200, 200, 255},
+		)
+
+	// Второй бублик: переход на страницу UnitNode.
+	case g.ActiveLayer == 1 && layerIndex == 1:
+		unitIdx := g.SelectedSegments[0] - 1
+		nodeIdx := g.SelectedSegments[1]
+		if unitIdx < 0 || unitIdx >= len(g.Units.Units) {
+			break
+		}
+		selectedUnit := g.Units.Units[unitIdx]
+		if nodeIdx < 0 || nodeIdx >= len(selectedUnit.UnitNodes) {
+			break
+		}
+		selectedNode := selectedUnit.UnitNodes[nodeIdx]
+
+		entityName := strings.TrimSpace(selectedNode.TopicName)
+		if entityName == "" {
+			entityName = selectedNode.UUID
+		}
+
+		hintText := "SPACE: открыть UnitNode \"" + entityName + "\" в Pepeunit Instance"
+
+		hintWidth := text.BoundString(fontFace, hintText).Dx()
+		hintX := cfg.ScreenWidth/2 - hintWidth/2
+		hintY := cfg.ScreenHeight - fontSize*2
+		if hintY < 0 {
+			hintY = fontSize
+		}
+		text.Draw(
+			screen,
+			hintText,
+			fontFace,
+			hintX,
+			hintY,
+			color.RGBA{200, 200, 200, 255},
+		)
+	}
 }
 
 // drawSpinner рисует спинер в центре бублика, если он активен.

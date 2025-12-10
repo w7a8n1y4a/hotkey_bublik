@@ -130,4 +130,3 @@ func DrawSegment(screen *ebiten.Image, x, y, rInner, rOuter int, angleStart, ang
 		drawRingSegment(screen, x, y, rInner, rOuter, rightStart, rightEnd, borderColor)
 	}
 }
-
