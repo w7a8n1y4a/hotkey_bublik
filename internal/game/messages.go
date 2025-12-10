@@ -444,6 +444,31 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 	}
 }
 
+// drawMQTTStatus выводит текстовый статус MQTT‑соединения в левом верхнем углу.
+func (g *Game) drawMQTTStatus(screen *ebiten.Image) {
+	if g.MQTTStatus == "" {
+		return
+	}
+
+	cfg := config.GetConfig()
+
+	fontFace := LoadFont(16)
+	x := 20
+	y := 40
+	maxWidth := int(cfg.ScreenWidth / 3)
+
+	DrawLeftAlignedText(
+		screen,
+		fontFace,
+		g.MQTTStatus,
+		x,
+		y,
+		maxWidth,
+		2,
+		color.RGBA{200, 200, 200, 255},
+	)
+}
+
 // drawSpinner рисует спинер в центре бублика, если он активен.
 func (g *Game) drawSpinner(screen *ebiten.Image) {
 	if !g.spinnerActive || g.spinnerImage == nil {

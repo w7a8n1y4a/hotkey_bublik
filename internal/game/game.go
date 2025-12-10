@@ -79,6 +79,9 @@ type Game struct {
 	refreshInProgress bool
 	mqttResultCh      chan mqttResult
 	mqttInProgress    bool
+
+	// MQTTStatus хранит человекочитаемый статус MQTT‑соединения / последней операции.
+	MQTTStatus string
 }
 
 type refreshResult struct {
@@ -106,6 +109,11 @@ func NewGame(client *pepeunit.PepeunitClient, data UnitsByNodesResponse, stateDa
 		return nil, fmt.Errorf("failed to load spinner image: %w", err)
 	}
 
+	mqttStatus := "MQTT: disabled"
+	if client != nil && client.GetMQTTClient() != nil {
+		mqttStatus = "MQTT: ready"
+	}
+
 	g := &Game{
 		PepeClient:         client,
 		Units:              data,
@@ -117,6 +125,7 @@ func NewGame(client *pepeunit.PepeunitClient, data UnitsByNodesResponse, stateDa
 		spinnerMinDuration: 100 * time.Millisecond,
 		refreshResultCh:    make(chan refreshResult, 1),
 		mqttResultCh:       make(chan mqttResult, 1),
+		MQTTStatus:         mqttStatus,
 	}
 
 	return g, nil
@@ -354,6 +363,9 @@ func (g *Game) Update() error {
 			g.mqttInProgress = false
 			if res.err != nil {
 				fmt.Println("failed to publish MQTT message:", res.err)
+				g.MQTTStatus = "MQTT: error: " + res.err.Error()
+			} else {
+				g.MQTTStatus = "MQTT: last publish OK"
 			}
 			g.finishSpinnerOp()
 		default:
@@ -761,6 +773,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Спинер поверх всего остального.
 	g.drawSpinner(screen)
+
+	// Текстовый статус MQTT‑соединения.
+	g.drawMQTTStatus(screen)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -794,6 +809,9 @@ func (g *Game) sendMQTT(topicName, payload string) {
 	if g.PepeClient == nil || g.PepeClient.GetMQTTClient() == nil || g.mqttInProgress {
 		return
 	}
+
+	// Обновляем статус перед началом отправки.
+	g.MQTTStatus = "MQTT: sending..."
 
 	g.mqttInProgress = true
 	g.startSpinnerOp()
