@@ -328,21 +328,21 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 
 	// На втором бублике дополнительно показываем JSON‑информацию о UnitNode слева
 	if layerIndex == 1 {
-		selectedUnitIdx := g.SelectedSegments[0]
-		if selectedUnitIdx < len(g.Units.Units) {
-			selectedUnit := g.Units.Units[selectedUnitIdx]
+		unitIdx := g.SelectedSegments[0] - 1 // 0‑й сегмент — дефолтный
+		if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+			selectedUnit := g.Units.Units[unitIdx]
 			selectedNodeIdx := g.SelectedSegments[1]
 			if selectedNodeIdx < len(selectedUnit.UnitNodes) {
 				selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
 
 				// Кэшируем JSON‑представление UnitNode, чтобы не сериализовать каждый кадр.
-				if g.lastNodeUnitIdx != selectedUnitIdx || g.lastNodeUnitNodeIdx != selectedNodeIdx || g.lastNodeInfoJSON == "" {
+				if g.lastNodeUnitIdx != unitIdx || g.lastNodeUnitNodeIdx != selectedNodeIdx || g.lastNodeInfoJSON == "" {
 					nodeJSON, err := json.MarshalIndent(selectedNode, "", "    ")
 					if err != nil {
 						return
 					}
 					g.lastNodeInfoJSON = string(nodeJSON)
-					g.lastNodeUnitIdx = selectedUnitIdx
+					g.lastNodeUnitIdx = unitIdx
 					g.lastNodeUnitNodeIdx = selectedNodeIdx
 				}
 

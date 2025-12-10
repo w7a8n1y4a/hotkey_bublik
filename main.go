@@ -9,7 +9,6 @@ import (
 	"image"
 	"image/png"
 	"log"
-	"net/url"
 	"os"
 	"os/exec"
 	"picker/internal/config"
@@ -297,77 +296,13 @@ func loadIcon(data []byte) ([]byte, error) {
 	return icon, nil
 }
 
-// fetchUnits загружает список Unit и UnitNode через REST‑клиент pepeunit.
-func fetchUnits(client *pepeunit.PepeunitClient) (game.UnitsByNodesResponse, error) {
-	if client == nil || client.GetRESTClient() == nil {
-		return game.UnitsByNodesResponse{}, fmt.Errorf("REST client is not initialized")
-	}
-	if client.GetSchema() == nil {
-		return game.UnitsByNodesResponse{}, fmt.Errorf("schema is not initialized")
-	}
-
-	// Находим URL output_units_nodes/pepeunit в schema.json
-	outputTopics := client.GetSchema().GetOutputTopic()
-	topicURLs, ok := outputTopics["output_units_nodes/pepeunit"]
-	if !ok || len(topicURLs) == 0 {
-		return game.UnitsByNodesResponse{}, fmt.Errorf("output_units_nodes/pepeunit not found in schema")
-	}
-	topicURL := topicURLs[0]
-
-	// Валидация URL (на всякий случай)
-	if _, err := url.Parse(topicURL); err != nil {
-		return game.UnitsByNodesResponse{}, fmt.Errorf("invalid topic URL in schema: %v", err)
-	}
-
-	ctx := context.Background()
-
-	// 1. Получаем UnitNodes по output topic
-	rawNodes, err := client.GetRESTClient().GetInputByOutput(ctx, topicURL, 100, 0)
-	if err != nil {
-		return game.UnitsByNodesResponse{}, err
-	}
-	nodesBytes, err := json.Marshal(rawNodes)
-	if err != nil {
-		return game.UnitsByNodesResponse{}, err
-	}
-
-	var unitNodesResp game.UnitNodesResponse
-	if err := json.Unmarshal(nodesBytes, &unitNodesResp); err != nil {
-		return game.UnitsByNodesResponse{}, err
-	}
-
-	if unitNodesResp.Count == 0 {
-		return game.UnitsByNodesResponse{}, fmt.Errorf("no edges found")
-	}
-
-	unitNodeUUIDs := make([]string, 0, len(unitNodesResp.UnitNodes))
-	for _, item := range unitNodesResp.UnitNodes {
-		unitNodeUUIDs = append(unitNodeUUIDs, item.UUID)
-	}
-
-	// 2. Получаем Units по UUID узлов
-	rawUnits, err := client.GetRESTClient().GetUnitsByNodes(ctx, unitNodeUUIDs, 100, 0)
-	if err != nil {
-		return game.UnitsByNodesResponse{}, err
-	}
-	unitsBytes, err := json.Marshal(rawUnits)
-	if err != nil {
-		return game.UnitsByNodesResponse{}, err
-	}
-
-	var unitsResp game.UnitsByNodesResponse
-	if err := json.Unmarshal(unitsBytes, &unitsResp); err != nil {
-		return game.UnitsByNodesResponse{}, err
-	}
-
-	return unitsResp, nil
-}
-
 // Function to prepare the game setup
 func prepareGame(client *pepeunit.PepeunitClient) (*game.Game, error) {
-	data, err := fetchUnits(client)
+	data, err := game.FetchUnits(client)
 	if err != nil {
-		return nil, fmt.Errorf("Ошибка при получении данных: %v", err)
+		// Ошибка загрузки юнитов не блокирует запуск игры:
+		// просто логируем и продолжаем с пустым списком Units.
+		log.Printf("Ошибка при получении данных (используем пустой список юнитов): %v", err)
 	}
 
 	// Update the game configuration

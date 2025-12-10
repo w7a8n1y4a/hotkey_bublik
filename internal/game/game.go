@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"net/url"
 
 	"github.com/atotto/clipboard"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -53,6 +54,77 @@ func (g *Game) GetState() map[string][][]string {
 		copyState[uuid] = dup
 	}
 	return copyState
+}
+
+// FetchUnits загружает список Unit и UnitNode через REST‑клиент pepeunit.
+// При отсутствии доступных юнитов возвращает пустой результат БЕЗ ошибки,
+// чтобы приложение могло запускаться даже в таком состоянии.
+func FetchUnits(client *pepeunit.PepeunitClient) (UnitsByNodesResponse, error) {
+	if client == nil || client.GetRESTClient() == nil {
+		return UnitsByNodesResponse{}, fmt.Errorf("REST client is not initialized")
+	}
+	if client.GetSchema() == nil {
+		return UnitsByNodesResponse{}, fmt.Errorf("schema is not initialized")
+	}
+
+	// Находим URL output_units_nodes/pepeunit в schema.json
+	outputTopics := client.GetSchema().GetOutputTopic()
+	topicURLs, ok := outputTopics["output_units_nodes/pepeunit"]
+	if !ok || len(topicURLs) == 0 {
+		// Нет топиков — считаем, что просто нет доступных юнитов.
+		return UnitsByNodesResponse{}, nil
+	}
+	topicURL := topicURLs[0]
+
+	// Валидация URL (на всякий случай). Некорректный URL трактуем
+	// как отсутствие доступных юнитов, а не как фатальную ошибку.
+	if _, err := url.Parse(topicURL); err != nil {
+		return UnitsByNodesResponse{}, nil
+	}
+
+	ctx := context.Background()
+
+	// 1. Получаем UnitNodes по output topic
+	rawNodes, err := client.GetRESTClient().GetInputByOutput(ctx, topicURL, 100, 0)
+	if err != nil {
+		return UnitsByNodesResponse{}, err
+	}
+	nodesBytes, err := json.Marshal(rawNodes)
+	if err != nil {
+		return UnitsByNodesResponse{}, err
+	}
+
+	var unitNodesResp UnitNodesResponse
+	if err := json.Unmarshal(nodesBytes, &unitNodesResp); err != nil {
+		return UnitsByNodesResponse{}, err
+	}
+
+	if unitNodesResp.Count == 0 || len(unitNodesResp.UnitNodes) == 0 {
+		// Нет связей — возвращаем пустой результат без ошибки.
+		return UnitsByNodesResponse{}, nil
+	}
+
+	unitNodeUUIDs := make([]string, 0, len(unitNodesResp.UnitNodes))
+	for _, item := range unitNodesResp.UnitNodes {
+		unitNodeUUIDs = append(unitNodeUUIDs, item.UUID)
+	}
+
+	// 2. Получаем Units по UUID узлов
+	rawUnits, err := client.GetRESTClient().GetUnitsByNodes(ctx, unitNodeUUIDs, 100, 0)
+	if err != nil {
+		return UnitsByNodesResponse{}, err
+	}
+	unitsBytes, err := json.Marshal(rawUnits)
+	if err != nil {
+		return UnitsByNodesResponse{}, err
+	}
+
+	var unitsResp UnitsByNodesResponse
+	if err := json.Unmarshal(unitsBytes, &unitsResp); err != nil {
+		return UnitsByNodesResponse{}, err
+	}
+
+	return unitsResp, nil
 }
 
 func (g *Game) saveStateRemote() error {
@@ -190,14 +262,17 @@ func (g *Game) Update() error {
 		var currentLayerLength int
 		switch g.ActiveLayer {
 		case 0: // Первый слой — список Units
-			currentLayerLength = len(g.Units.Units)
+			// +1 — дефолтный сегмент для обновления списка юнитов.
+			currentLayerLength = len(g.Units.Units) + 1
 		case 1: // Второй слой — UnitNodes выбранного Unit
-			if g.SelectedSegments[0] < len(g.Units.Units) {
-				currentLayerLength = len(g.Units.Units[g.SelectedSegments[0]].UnitNodes)
+			unitIdx := g.SelectedSegments[0] - 1 // 0‑й сегмент — дефолтный
+			if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+				currentLayerLength = len(g.Units.Units[unitIdx].UnitNodes)
 			}
 		case 2: // Третий слой — данные из StateManager
-			if g.SelectedSegments[0] < len(g.Units.Units) {
-				selectedUnit := g.Units.Units[g.SelectedSegments[0]]
+			unitIdx := g.SelectedSegments[0] - 1
+			if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+				selectedUnit := g.Units.Units[unitIdx]
 				if g.SelectedSegments[1] < len(selectedUnit.UnitNodes) {
 					selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
 					// Внутри Game нет необходимости копировать всё состояние,
@@ -215,10 +290,10 @@ func (g *Game) Update() error {
 
 		g.handleKey(ebiten.KeyDelete, func() {
 			if g.ActiveLayer == 2 {
-				selectedUnitIdx := g.SelectedSegments[0]
+				unitIdx := g.SelectedSegments[0] - 1
 				selectedNodeIdx := g.SelectedSegments[1]
-				if selectedUnitIdx < len(g.Units.Units) {
-					selectedUnit := g.Units.Units[selectedUnitIdx]
+				if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+					selectedUnit := g.Units.Units[unitIdx]
 					if selectedNodeIdx < len(selectedUnit.UnitNodes) {
 						selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
 						stateData := g.StateData[selectedNode.UUID]
@@ -236,14 +311,28 @@ func (g *Game) Update() error {
 		})
 
 		g.handleKey(ebiten.Key(ebiten.MouseButtonLeft), func() {
-			if g.ActiveLayer < 2 {
-				g.ActiveLayer++
-				g.SelectedSegments[g.ActiveLayer] = 0
+			if g.ActiveLayer == 0 {
+				// На первом бублике 0‑й сегмент — дефолтный.
+				if g.SelectedSegments[0] == 0 {
+					// Дефолтный сегмент: обновляем список доступных Unit/UnitNode.
+					g.refreshUnits()
+					return
+				}
+
+				// Переход на второй бублик возможен только если выбран реальный Unit.
+				if len(g.Units.Units) > 0 {
+					g.ActiveLayer = 1
+					g.SelectedSegments[1] = 0
+				}
+			} else if g.ActiveLayer == 1 {
+				// Стандартное поведение между вторым и третьим бубликом.
+				g.ActiveLayer = 2
+				g.SelectedSegments[2] = 0
 			} else if g.ActiveLayer == 2 {
-				selectedUnitIdx := g.SelectedSegments[0]
+				unitIdx := g.SelectedSegments[0] - 1
 				selectedNodeIdx := g.SelectedSegments[1]
-				if selectedUnitIdx < len(g.Units.Units) {
-					selectedUnit := g.Units.Units[selectedUnitIdx]
+				if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+					selectedUnit := g.Units.Units[unitIdx]
 					if selectedNodeIdx < len(selectedUnit.UnitNodes) {
 						selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
 						stateData := g.StateData[selectedNode.UUID]
@@ -285,11 +374,11 @@ func (g *Game) Update() error {
 		// при активном третьем слое и выбранной опции (кроме "Create New Option")
 		// по Ctrl+Shift+<буква A-Z> записываем хоткей в состояние.
 		if g.ActiveLayer == 2 {
-			selectedUnitIdx := g.SelectedSegments[0]
+			unitIdx := g.SelectedSegments[0] - 1
 			selectedNodeIdx := g.SelectedSegments[1]
 
-			if selectedUnitIdx < len(g.Units.Units) {
-				selectedUnit := g.Units.Units[selectedUnitIdx]
+			if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+				selectedUnit := g.Units.Units[unitIdx]
 				if selectedNodeIdx < len(selectedUnit.UnitNodes) {
 					selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
 					stateData := g.StateData[selectedNode.UUID]
@@ -428,18 +517,22 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 			switch layerIndex {
 			case 0:
+				// Первый бублик: дефолтный сегмент + список Units.
+				items = append(items, []string{"Обновить список юнитов"})
 				for _, unit := range g.Units.Units {
 					items = append(items, []string{unit.Name})
 				}
 			case 1:
-				if g.SelectedSegments[0] < len(g.Units.Units) {
-					for _, node := range g.Units.Units[g.SelectedSegments[0]].UnitNodes {
+				unitIdx := g.SelectedSegments[0] - 1
+				if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+					for _, node := range g.Units.Units[unitIdx].UnitNodes {
 						items = append(items, []string{node.TopicName})
 					}
 				}
 			case 2:
-				if g.SelectedSegments[0] < len(g.Units.Units) {
-					selectedUnit := g.Units.Units[g.SelectedSegments[0]]
+				unitIdx := g.SelectedSegments[0] - 1
+				if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+					selectedUnit := g.Units.Units[unitIdx]
 					if g.SelectedSegments[1] < len(selectedUnit.UnitNodes) {
 						selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
 						stateData := g.StateData[selectedNode.UUID]
@@ -481,4 +574,32 @@ func (g *Game) Draw(screen *ebiten.Image) {
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	cfg := config.GetConfig()
 	return cfg.ScreenWidth, cfg.ScreenHeight
+}
+
+// refreshUnits обновляет список доступных Unit/UnitNode через Pepeunit‑клиент
+// и сбрасывает выбор бубликов на дефолтный сегмент.
+func (g *Game) refreshUnits() {
+	if g.PepeClient == nil {
+		return
+	}
+
+	data, err := FetchUnits(g.PepeClient)
+	if err != nil {
+		fmt.Println("failed to refresh units:", err)
+		return
+	}
+
+	g.Units = data
+
+	// Сбрасываем выбор и активный слой.
+	if len(g.SelectedSegments) >= 1 {
+		g.SelectedSegments[0] = 0
+	}
+	if len(g.SelectedSegments) >= 2 {
+		g.SelectedSegments[1] = 0
+	}
+	if len(g.SelectedSegments) >= 3 {
+		g.SelectedSegments[2] = 0
+	}
+	g.ActiveLayer = 0
 }
