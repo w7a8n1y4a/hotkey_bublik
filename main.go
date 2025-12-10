@@ -323,14 +323,7 @@ func prepareGame(client *pepeunit.PepeunitClient) (*game.Game, error) {
 		}
 	}
 
-	return &game.Game{
-		PepeClient:       client,
-		Units:            data,
-		SelectedSegments: make([]int, 3),
-		KeyDownMap:       make(map[ebiten.Key]bool),
-		StateData:        stateData,
-		ActiveLayer:      0,
-	}, nil
+	return game.NewGame(client, data, stateData)
 }
 
 // Function to start the game

@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/url"
 	"os/exec"
+	"time"
 
 	"github.com/atotto/clipboard"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -42,6 +43,62 @@ type Game struct {
 	lastNodeInfoJSON    string
 	lastNodeUnitIdx     int
 	lastNodeUnitNodeIdx int
+
+	// Спинер загрузки/отправки
+	spinnerImage       *ebiten.Image
+	spinnerActive      bool
+	spinnerAngle       float64
+	spinnerStart       time.Time
+	spinnerLastUpdate  time.Time
+	spinnerOpsInFlight int
+	spinnerMinDuration time.Duration
+
+	// Асинхронные операции
+	refreshResultCh   chan refreshResult
+	refreshInProgress bool
+	mqttResultCh      chan mqttResult
+	mqttInProgress    bool
+}
+
+type refreshResult struct {
+	data UnitsByNodesResponse
+	err  error
+}
+
+type mqttResult struct {
+	err error
+}
+
+// NewGame конструирует Game, подготавливая спинер и каналы для асинхронных операций.
+func NewGame(client *pepeunit.PepeunitClient, data UnitsByNodesResponse, stateData map[string][][]string) (*Game, error) {
+	cfg := config.GetConfig()
+
+	// Размер спинера: примерно в 2 раза больше предыдущего варианта.
+	// Можно тонко настроить коэффициент при необходимости.
+	spinnerSize := 2 * (cfg.RadiusInner - 40)
+	if spinnerSize < 10 {
+		spinnerSize = 10
+	}
+
+	spinnerImg, err := loadSpinnerImage(spinnerSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load spinner image: %w", err)
+	}
+
+	g := &Game{
+		PepeClient:         client,
+		Units:              data,
+		StateData:          stateData,
+		KeyDownMap:         make(map[ebiten.Key]bool),
+		SelectedSegments:   make([]int, 3),
+		ActiveLayer:        0,
+		spinnerImage:       spinnerImg,
+		spinnerMinDuration: 100 * time.Millisecond,
+		refreshResultCh:    make(chan refreshResult, 1),
+		mqttResultCh:       make(chan mqttResult, 1),
+	}
+
+	return g, nil
 }
 
 func (g *Game) GetState() map[string][][]string {
@@ -249,10 +306,36 @@ func (g *Game) AwaitTextInput(isFirstWrite bool) string {
 }
 
 func (g *Game) Update() error {
+	g.updateSpinner()
+
 	switch g.InputMode {
 	case ModeGame:
 		if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 			return fmt.Errorf("game closed by user")
+		}
+
+		// Обрабатываем результаты асинхронных операций (refresh units, MQTT publish).
+		select {
+		case res := <-g.refreshResultCh:
+			g.refreshInProgress = false
+			if res.err != nil {
+				fmt.Println("failed to refresh units:", res.err)
+			} else {
+				g.Units = res.data
+				g.resetSelection()
+			}
+			g.finishSpinnerOp()
+		default:
+		}
+
+		select {
+		case res := <-g.mqttResultCh:
+			g.mqttInProgress = false
+			if res.err != nil {
+				fmt.Println("failed to publish MQTT message:", res.err)
+			}
+			g.finishSpinnerOp()
+		default:
 		}
 
 		cfg := config.GetConfig()
@@ -399,10 +482,8 @@ func (g *Game) Update() error {
 								topicName := settings.PU_DOMAIN + "/" + selectedNode.UUID + "/pepeunit"
 								fmt.Println(topicName)
 								if g.PepeClient != nil && g.PepeClient.GetMQTTClient() != nil {
-									err := g.PepeClient.GetMQTTClient().Publish(topicName, stateData[g.SelectedSegments[2]-1][1])
-									if err == nil {
-										fmt.Println("Sendet")
-									}
+									payload := stateData[g.SelectedSegments[2]-1][1]
+									g.sendMQTT(topicName, payload)
 								}
 							}
 						}
@@ -617,6 +698,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	case ModeTextInput:
 		g.drawTextInputMessages(screen)
 	}
+
+	// Спинер поверх всего остального.
+	g.drawSpinner(screen)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -624,22 +708,49 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return cfg.ScreenWidth, cfg.ScreenHeight
 }
 
-// refreshUnits обновляет список доступных Unit/UnitNode через Pepeunit‑клиент
-// и сбрасывает выбор бубликов на дефолтный сегмент.
+// refreshUnits запускает асинхронное обновление списка доступных Unit/UnitNode
+// через Pepeunit‑клиент и сбрасывает выбор бубликов на дефолтный сегмент
+// после получения результата. При повторном вызове во время выполнения
+// предыдущего запроса новый запрос игнорируется.
 func (g *Game) refreshUnits() {
-	if g.PepeClient == nil {
+	if g.PepeClient == nil || g.refreshInProgress {
 		return
 	}
 
-	data, err := FetchUnits(g.PepeClient)
-	if err != nil {
-		fmt.Println("failed to refresh units:", err)
+	g.refreshInProgress = true
+	g.startSpinnerOp()
+
+	client := g.PepeClient
+
+	go func(ch chan<- refreshResult) {
+		data, err := FetchUnits(client)
+		ch <- refreshResult{data: data, err: err}
+	}(g.refreshResultCh)
+}
+
+// sendMQTT отправляет MQTT‑сообщение асинхронно и показывает спинер
+// на время отправки.
+func (g *Game) sendMQTT(topicName, payload string) {
+	if g.PepeClient == nil || g.PepeClient.GetMQTTClient() == nil || g.mqttInProgress {
 		return
 	}
 
-	g.Units = data
+	g.mqttInProgress = true
+	g.startSpinnerOp()
 
-	// Сбрасываем выбор и активный слой.
+	client := g.PepeClient
+
+	go func(ch chan<- mqttResult) {
+		var err error
+		if client != nil && client.GetMQTTClient() != nil {
+			err = client.GetMQTTClient().Publish(topicName, payload)
+		}
+		ch <- mqttResult{err: err}
+	}(g.mqttResultCh)
+}
+
+// resetSelection сбрасывает выбор бубликов и активный слой.
+func (g *Game) resetSelection() {
 	if len(g.SelectedSegments) >= 1 {
 		g.SelectedSegments[0] = 0
 	}
@@ -650,4 +761,48 @@ func (g *Game) refreshUnits() {
 		g.SelectedSegments[2] = 0
 	}
 	g.ActiveLayer = 0
+}
+
+// startSpinnerOp активирует спинер или добавляет ещё одну операцию,
+// требующую его отображения.
+func (g *Game) startSpinnerOp() {
+	now := time.Now()
+	if !g.spinnerActive {
+		g.spinnerActive = true
+		g.spinnerAngle = 0
+		g.spinnerStart = now
+		g.spinnerLastUpdate = now
+	}
+	g.spinnerOpsInFlight++
+}
+
+// finishSpinnerOp помечает завершение одной асинхронной операции.
+func (g *Game) finishSpinnerOp() {
+	if g.spinnerOpsInFlight > 0 {
+		g.spinnerOpsInFlight--
+	}
+}
+
+// updateSpinner обновляет угол поворота спинера и его видимость.
+func (g *Game) updateSpinner() {
+	if !g.spinnerActive {
+		return
+	}
+
+	now := time.Now()
+
+	// Обновляем угол поворота: 1 полный оборот в секунду.
+	dt := now.Sub(g.spinnerLastUpdate).Seconds()
+	if dt < 0 {
+		dt = 0
+	}
+	g.spinnerLastUpdate = now
+	g.spinnerAngle += 2 * math.Pi * dt
+
+	// Прячем спинер, если:
+	// - нет активных операций
+	// - прошло минимум spinnerMinDuration с момента первого запуска
+	if g.spinnerOpsInFlight == 0 && now.Sub(g.spinnerStart) >= g.spinnerMinDuration {
+		g.spinnerActive = false
+	}
 }

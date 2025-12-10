@@ -380,6 +380,27 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 	}
 }
 
+// drawSpinner рисует спинер в центре бублика, если он активен.
+func (g *Game) drawSpinner(screen *ebiten.Image) {
+	if !g.spinnerActive || g.spinnerImage == nil {
+		return
+	}
+
+	cfg := config.GetConfig()
+
+	w, h := g.spinnerImage.Size()
+
+	op := &ebiten.DrawImageOptions{}
+	// Центрируем изображение относительно (0,0)
+	op.GeoM.Translate(-float64(w)/2, -float64(h)/2)
+	// Поворот вокруг центра
+	op.GeoM.Rotate(g.spinnerAngle)
+	// Перенос в центр бублика
+	op.GeoM.Translate(float64(cfg.PickerCenterX), float64(cfg.PickerCenterY))
+
+	screen.DrawImage(g.spinnerImage, op)
+}
+
 // drawTextInputMessages выводит подсказки и введённый текст в режиме ввода
 func (g *Game) drawTextInputMessages(screen *ebiten.Image) {
 	cfg := config.GetConfig()
