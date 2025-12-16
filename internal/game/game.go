@@ -16,6 +16,7 @@ import (
 
 	"picker/internal/config"
 	"picker/internal/graphics"
+	"picker/internal/hotkeys"
 
 	pepeunit "github.com/w7a8n1y4a/pepeunit_go_client"
 )
@@ -25,6 +26,7 @@ type InputMode int
 const (
 	ModeGame InputMode = iota
 	ModeTextInput
+	ModeHotkeyInput
 )
 
 // Палитра базовых цветов Unit, близкая к Google Material Design.
@@ -62,6 +64,12 @@ type Game struct {
 	OnTextInputDone   func(string)
 	OnTextInputCancel func()
 	IsFirstWrite      bool
+	// Режим ввода хоткеев
+	HotkeyInputTargetUnitNodeUUID string
+	HotkeyInputTargetOptionName    string
+	HotkeyInputCurrent             string
+	OnHotkeyInputDone              func(string)
+	OnHotkeyInputCancel            func()
 	// Кэш JSON‑представления выбранного UnitNode для уменьшения аллокаций в отрисовке.
 	lastNodeInfoJSON    string
 	lastNodeUnitIdx     int
@@ -267,9 +275,30 @@ func (g *Game) RemoveOption(unitNodeUUID, optionName string) error {
 // SetOptionHotkey назначает хоткей для конкретной опции.
 // Формат StateData: [name, value, hotkey] — третье поле опционально.
 // Хоткей делаем глобально уникальным: перед назначением убираем его у других опций.
+// Если hotkey пустая строка, хоткей удаляется.
 func (g *Game) SetOptionHotkey(unitNodeUUID, optionName, hotkey string) error {
+	// Пустая строка означает удаление хоткея
 	if hotkey == "" {
-		return fmt.Errorf("hotkey cannot be empty")
+		// Просто удаляем хоткей, не проверяя уникальность
+		items, ok := g.StateData[unitNodeUUID]
+		if !ok {
+			return fmt.Errorf("unit node %s not found in state", unitNodeUUID)
+		}
+
+		for i, pair := range items {
+			if len(pair) > 0 && pair[0] == optionName {
+				if len(pair) >= 3 {
+					g.StateData[unitNodeUUID][i][2] = ""
+				}
+				return g.saveStateRemote()
+			}
+		}
+		return fmt.Errorf("option %s not found for unit node %s", optionName, unitNodeUUID)
+	}
+
+	// Валидация хоткея
+	if err := hotkeys.ValidateHotkey(hotkey); err != nil {
+		return fmt.Errorf("invalid hotkey: %w", err)
 	}
 
 	// Снимаем этот хоткей со всех опций во всех нодах, чтобы он был глобально уникальным
@@ -542,7 +571,24 @@ func (g *Game) Update() error {
 							}()
 						} else {
 							if stateData != nil {
+								// Проверяем, кликнули ли по полю хоткея (должно быть ДО обычного клика)
+								mouseX, mouseY := ebiten.CursorPosition()
+								if g.isHotkeyFieldClickedAt(mouseX, mouseY) {
+									// Переходим в режим ввода хоткея
+									optionName := stateData[g.SelectedSegments[2]-1][0]
+									go func() {
+										hotkey, cancelled := g.AwaitHotkeyInput(selectedNode.UUID, optionName)
+										if cancelled {
+											return
+										}
+										if err := g.SetOptionHotkey(selectedNode.UUID, optionName, hotkey); err != nil {
+											fmt.Println("Error setting hotkey:", err)
+										}
+									}()
+									return
+								}
 
+								// Обычный клик по опции - отправляем MQTT сообщение
 								fmt.Println(stateData[g.SelectedSegments[2]-1])
 								settings := g.PepeClient.GetSettings()
 								topicName := settings.PU_DOMAIN + "/" + selectedNode.UUID + "/pepeunit"
@@ -559,33 +605,35 @@ func (g *Game) Update() error {
 		})
 
 		g.handleKey(ebiten.Key(ebiten.MouseButtonRight), func() {
+			if g.ActiveLayer == 2 {
+				// На третьем слое правый клик может сбрасывать хоткей, если клик по полю хоткея
+				unitIdx := g.SelectedSegments[0] - 1
+				selectedNodeIdx := g.SelectedSegments[1]
+				if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+					selectedUnit := g.Units.Units[unitIdx]
+					if selectedNodeIdx < len(selectedUnit.UnitNodes) {
+						selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
+						stateData := g.StateData[selectedNode.UUID]
+
+						// Проверяем, кликнули ли по полю хоткея
+						if g.isHotkeyFieldClicked() && g.SelectedSegments[2] > 0 && g.SelectedSegments[2]-1 < len(stateData) {
+							optionName := stateData[g.SelectedSegments[2]-1][0]
+							// Сбрасываем хоткей (устанавливаем в пустую строку)
+							if err := g.SetOptionHotkey(selectedNode.UUID, optionName, ""); err != nil {
+								fmt.Println("Error clearing hotkey:", err)
+							}
+							return
+						}
+					}
+				}
+			}
+
 			if g.ActiveLayer > 0 {
 				g.ActiveLayer--
 				g.SelectedSegments[g.ActiveLayer] = 0
 			}
 		})
 
-		// Назначение хоткея для опции на третьем бублике:
-		// при активном третьем слое и выбранной опции (кроме "Create New Option")
-		// по Ctrl+Shift+<буква A-Z> записываем хоткей в состояние.
-		if g.ActiveLayer == 2 {
-			unitIdx := g.SelectedSegments[0] - 1
-			selectedNodeIdx := g.SelectedSegments[1]
-
-			if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
-				selectedUnit := g.Units.Units[unitIdx]
-				if selectedNodeIdx < len(selectedUnit.UnitNodes) {
-					selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
-					stateData := g.StateData[selectedNode.UUID]
-
-					// 0‑й сегмент — "Create New Option", реальные опции начинаются с индекса 1
-					if g.SelectedSegments[2] > 0 && g.SelectedSegments[2]-1 < len(stateData) {
-						optionName := stateData[g.SelectedSegments[2]-1][0]
-						g.handleHotkeyAssignment(optionName, selectedNode.UUID)
-					}
-				}
-			}
-		}
 	case ModeTextInput:
 		// Обновляем счётчик мигания курсора
 		g.CursorTick++
@@ -600,7 +648,7 @@ func (g *Game) Update() error {
 			}
 		})
 
-		for _, char := range ebiten.InputChars() {
+		for _, char := range ebiten.AppendInputChars(nil) {
 			if char != '\n' && char != '\r' {
 				g.TextInput += string(char)
 			}
@@ -643,6 +691,41 @@ func (g *Game) Update() error {
 
 		})
 
+	case ModeHotkeyInput:
+		// Обновляем счётчик мигания курсора
+		g.CursorTick++
+
+		// ESC отменяет ввод хоткея
+		g.handleKey(ebiten.KeyEscape, func() {
+			if g.OnHotkeyInputCancel != nil {
+				g.OnHotkeyInputCancel()
+			} else {
+				g.InputMode = ModeGame
+			}
+		})
+
+		// Захватываем текущую комбинацию клавиш
+		currentHotkey := hotkeys.CaptureHotkeyFromEbiten()
+		if currentHotkey != "" {
+			g.HotkeyInputCurrent = currentHotkey
+		}
+
+		// Enter сохраняет хоткей
+		g.handleKey(ebiten.KeyEnter, func() {
+			if g.OnHotkeyInputDone != nil {
+				// Если есть захваченный хоткей, используем его, иначе пустую строку (сброс)
+				hotkeyToSave := g.HotkeyInputCurrent
+				g.OnHotkeyInputDone(hotkeyToSave)
+			}
+			g.InputMode = ModeGame
+		})
+
+		// Backspace или Delete сбрасывают текущий захваченный хоткей (но не закрывают окно)
+		// Пользователь должен нажать ENTER чтобы сохранить пустой хоткей, или ESC чтобы отменить
+		if ebiten.IsKeyPressed(ebiten.KeyBackspace) || ebiten.IsKeyPressed(ebiten.KeyDelete) {
+			g.HotkeyInputCurrent = ""
+		}
+
 	}
 
 	return nil
@@ -679,29 +762,40 @@ func (g *Game) handleKeyCombination(key ebiten.Key, modifier ebiten.Key, action 
 	}
 }
 
-// handleHotkeyAssignment отслеживает нажатия Ctrl+Shift+буква (A‑Z)
-// и при первом нажатии назначает хоткей для указанной опции.
-func (g *Game) handleHotkeyAssignment(optionName, unitNodeUUID string) {
-	for k := ebiten.KeyA; k <= ebiten.KeyZ; k++ {
-		if ebiten.IsKeyPressed(k) && ebiten.IsKeyPressed(ebiten.KeyControl) && ebiten.IsKeyPressed(ebiten.KeyShift) {
-			if !g.KeyDownMap[k] {
-				g.KeyDownMap[k] = true
+// StartHotkeyInput переключает игру в режим ввода хоткея для указанной опции
+func (g *Game) StartHotkeyInput(unitNodeUUID, optionName string, callback func(string)) {
+	g.InputMode = ModeHotkeyInput
+	g.HotkeyInputTargetUnitNodeUUID = unitNodeUUID
+	g.HotkeyInputTargetOptionName = optionName
+	g.HotkeyInputCurrent = ""
+	g.OnHotkeyInputDone = callback
+	g.OnHotkeyInputCancel = nil
+	g.CursorTick = 0
+}
 
-				// Преобразуем код клавиши в букву A‑Z
-				offset := int(k - ebiten.KeyA)
-				if offset >= 0 && offset < 26 {
-					hotkeyChar := string(rune('A' + offset))
-					if err := g.SetOptionHotkey(unitNodeUUID, optionName, hotkeyChar); err != nil {
-						fmt.Println("failed to set hotkey:", err)
-					} else {
-						fmt.Printf("assigned hotkey Ctrl+Shift+%s to option %s (%s)\n", hotkeyChar, optionName, unitNodeUUID)
-					}
-				}
-			}
-		} else {
-			g.KeyDownMap[k] = false
-		}
+// AwaitHotkeyInput блокирует выполнение до получения хоткея
+func (g *Game) AwaitHotkeyInput(unitNodeUUID, optionName string) (string, bool) {
+	resultChan := make(chan textInputResult, 1)
+
+	g.InputMode = ModeHotkeyInput
+	g.HotkeyInputTargetUnitNodeUUID = unitNodeUUID
+	g.HotkeyInputTargetOptionName = optionName
+	g.HotkeyInputCurrent = ""
+	g.CursorTick = 0
+
+	finish := func(res textInputResult) {
+		g.OnHotkeyInputDone = nil
+		g.OnHotkeyInputCancel = nil
+		g.InputMode = ModeGame
+		resultChan <- res
+		close(resultChan)
 	}
+
+	g.OnHotkeyInputDone = func(hotkey string) { finish(textInputResult{text: hotkey, cancelled: false}) }
+	g.OnHotkeyInputCancel = func() { finish(textInputResult{text: "", cancelled: true}) }
+
+	res := <-resultChan
+	return res.text, res.cancelled
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -812,6 +906,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	case ModeTextInput:
 		g.drawTextInputMessages(screen)
+	case ModeHotkeyInput:
+		g.drawHotkeyInputMessages(screen)
 	}
 
 	// Спинер поверх всего остального.
@@ -902,6 +998,51 @@ func (g *Game) finishSpinnerOp() {
 	if g.spinnerOpsInFlight > 0 {
 		g.spinnerOpsInFlight--
 	}
+}
+
+// isHotkeyFieldClicked проверяет, находится ли курсор в области поля хоткея
+// Использует те же координаты, что и в messages.go для точного совпадения
+func (g *Game) isHotkeyFieldClicked() bool {
+	if g.ActiveLayer != 2 {
+		return false
+	}
+	mouseX, mouseY := ebiten.CursorPosition()
+	return g.isHotkeyFieldClickedAt(mouseX, mouseY)
+}
+
+// isHotkeyFieldClickedAt проверяет, находится ли указанная точка в области поля хоткея
+// Использует те же координаты, что и в messages.go для точного совпадения
+func (g *Game) isHotkeyFieldClickedAt(mouseX, mouseY int) bool {
+	if g.ActiveLayer != 2 {
+		return false
+	}
+
+	cfg := config.GetConfig()
+
+	// Используем те же вычисления координат, что и в messages.go
+	fontSize := 24
+	valueColumnCenterX := int(cfg.ScreenWidth / 5)
+	hotkeyColumnCenterX := cfg.ScreenWidth - valueColumnCenterX
+
+	// Вычисляем centerY так же, как в messages.go для layerIndex == 2
+	centerOption := int(cfg.ScreenHeight / 2)
+	optionExternalLen := int(float64(cfg.RadiusInner) + float64(cfg.ThickSegment)*3 + float64(fontSize)*float64(2))
+	centerY := centerOption - optionExternalLen + fontSize
+
+	// Координаты надписи "Hotkey:"
+	labelY := centerY - fontSize/2
+	// Координаты текста хоткея под надписью
+	hotkeyTextY := labelY + fontSize + 10
+	maxWidth := int(cfg.ScreenWidth / 5)
+
+	// Проверяем, находится ли курсор в области поля хоткея
+	// Учитываем как область надписи "Hotkey:", так и область текста хоткея
+	fieldLeft := hotkeyColumnCenterX - maxWidth/2
+	fieldRight := hotkeyColumnCenterX + maxWidth/2
+	fieldTop := labelY - fontSize // Немного выше надписи
+	fieldBottom := hotkeyTextY + fontSize*6 // Учитываем подсказку и многострочный текст
+
+	return mouseX >= fieldLeft && mouseX <= fieldRight && mouseY >= fieldTop && mouseY <= fieldBottom
 }
 
 // updateSpinner обновляет угол поворота спинера и его видимость.

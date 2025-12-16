@@ -16,6 +16,7 @@ import (
 	"golang.org/x/image/font/opentype"
 
 	"picker/internal/config"
+	"picker/internal/hotkeys"
 )
 
 //go:embed fonts/cornerita_black.ttf
@@ -289,9 +290,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 
 		if len(items[g.SelectedSegments[layerIndex]]) >= 3 {
 			rawHotkey := strings.TrimSpace(items[g.SelectedSegments[layerIndex]][2])
-			if rawHotkey != "" {
-				hotkeyValue = "Ctrl+Shift+" + strings.ToUpper(rawHotkey)
-			}
+			hotkeyValue = hotkeys.FormatHotkeyFromString(rawHotkey)
 		}
 
 		// Центр правой колонки симметрично левой
@@ -314,10 +313,24 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 		hotkeyTextY := labelY + fontSize + 10
 		maxWidth := int(cfg.ScreenWidth / 5)
 		hotkeyTextX := hotkeyColumnCenterX - maxWidth/2
+
+		// Определяем, является ли это выбранной опцией (не "Create New Option")
+		isSelectedOption := g.SelectedSegments[layerIndex] > 0 && g.SelectedSegments[layerIndex]-1 < len(items)
+		isActiveLayer := g.ActiveLayer == 2
+
+		// Если это выбранная опция, показываем подсказку о редактировании
+		var displayText string
+		if isSelectedOption && isActiveLayer {
+			// Показываем подсказку о том, что можно кликнуть для редактирования
+			displayText = hotkeyValue + "\n\n(Click to edit,\nRight-click to clear)"
+		} else {
+			displayText = hotkeyValue
+		}
+
 		DrawLeftAlignedText(
 			screen,
 			fontFace,
-			hotkeyValue,
+			displayText,
 			hotkeyTextX,
 			hotkeyTextY,
 			maxWidth,
@@ -553,4 +566,75 @@ func (g *Game) getTextInputWithCursor() string {
 	}
 
 	return text
+}
+
+// drawHotkeyInputMessages выводит подсказки и текущую комбинацию клавиш в режиме ввода хоткея
+func (g *Game) drawHotkeyInputMessages(screen *ebiten.Image) {
+	cfg := config.GetConfig()
+
+	fontFace := LoadFont(24)
+	fontBigFace := LoadFont(32)
+	centerX := cfg.ScreenWidth / 2
+	centerY := cfg.ScreenHeight / 2
+
+	optionName := g.HotkeyInputTargetOptionName
+	if optionName == "" {
+		optionName = "option"
+	}
+
+	targetText := "Set hotkey for: " + optionName
+
+	DrawCenteredText(
+		screen,
+		fontBigFace,
+		targetText,
+		centerX,
+		centerY/3,
+		600,
+		4,
+		color.White,
+	)
+
+	DrawCenteredText(
+		screen,
+		fontFace,
+		"Press key combination",
+		centerX,
+		centerY/2,
+		400,
+		4,
+		color.White,
+	)
+
+	// Отображаем текущую комбинацию клавиш
+	hotkeyDisplay := g.HotkeyInputCurrent
+	if hotkeyDisplay == "" {
+		hotkeyDisplay = "No keys pressed"
+	} else {
+		hotkeyDisplay = hotkeys.FormatHotkeyFromString(hotkeyDisplay)
+	}
+
+	DrawCenteredText(
+		screen,
+		fontBigFace,
+		hotkeyDisplay,
+		centerX,
+		centerY,
+		600,
+		4,
+		color.RGBA{100, 200, 255, 255}, // Голубой цвет для текущей комбинации
+	)
+
+	// Подсказки
+	hintText := "ENTER: Save | ESC: Cancel | BACKSPACE/DELETE: Clear current"
+	DrawCenteredText(
+		screen,
+		fontFace,
+		hintText,
+		centerX,
+		centerY+100,
+		800,
+		4,
+		color.RGBA{200, 200, 200, 255},
+	)
 }
