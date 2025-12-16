@@ -1,6 +1,7 @@
 {   
     "RADIUS_INNER": 200,
     "THICK_SEGMENT": 50,
+    "HOTKEY_MAIN": "CTRL+SHIFT+P",
     "PU_DOMAIN": "unit.example.com",
     "PU_HTTP_TYPE": "https",
     "PU_APP_PREFIX": "/pepeunit",

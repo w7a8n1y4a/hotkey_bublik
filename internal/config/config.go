@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -12,13 +13,14 @@ import (
 // Все сетевые и платформенные настройки берутся из pepeunit_go_client.
 type Config struct {
 	// Внутренние переменные приложения
-	ScreenWidth       int          `json:"-"`
-	ScreenHeight      int          `json:"-"`
-	PickerCenterX     int          `json:"-"`
-	PickerCenterY     int          `json:"-"`
-	RadiusInner       int            `json:"RADIUS_INNER"`
-	ThickSegment      int            `json:"THICK_SEGMENT"`
-	BlurredBackground *ebiten.Image  `json:"-"`
+	ScreenWidth       int           `json:"-"`
+	ScreenHeight      int           `json:"-"`
+	PickerCenterX     int           `json:"-"`
+	PickerCenterY     int           `json:"-"`
+	RadiusInner       int           `json:"RADIUS_INNER"`
+	ThickSegment      int           `json:"THICK_SEGMENT"`
+	BlurredBackground *ebiten.Image `json:"-"`
+	LaunchHotkeyMain  *string       `json:"HOTKEY_MAIN"`
 }
 
 // Глобальная переменная для конфигурации
@@ -32,8 +34,9 @@ var lastEnvModTime time.Time
 
 // вспомогательная структура только для чтения значений бублика из env.json
 type donutEnv struct {
-	RadiusInner  int `json:"RADIUS_INNER"`
-	ThickSegment int `json:"THICK_SEGMENT"`
+	RadiusInner  int     `json:"RADIUS_INNER"`
+	ThickSegment int     `json:"THICK_SEGMENT"`
+	HotkeyMain   *string `json:"HOTKEY_MAIN"`
 }
 
 // Инициализация пакета
@@ -44,6 +47,8 @@ func init() {
 	// Значения по умолчанию для радиуса бублика, если в env.json их нет
 	config.RadiusInner = 200
 	config.ThickSegment = 50
+	// HOTKEY_MAIN: без дефолта из кода; пока env.json не загрузился — хоткей не регистрируем.
+	config.LaunchHotkeyMain = nil
 
 	// Пытаемся загрузить RADIUS_INNER и THICK_SEGMENT из общего env.json,
 	// остальные переменные читает pepeunit_go_client.
@@ -70,6 +75,22 @@ func loadDonutConfigFromFile(filePath string) error {
 	}
 	if env.ThickSegment > 0 {
 		config.ThickSegment = env.ThickSegment
+	}
+
+	// HOTKEY_MAIN:
+	// - отсутствует / null / пустая строка -> хоткей не регистрируется
+	// - строка -> используем указанное значение (триммим пробелы)
+	if env.HotkeyMain == nil {
+		config.LaunchHotkeyMain = nil
+	} else {
+		trimmed := strings.TrimSpace(*env.HotkeyMain)
+		if trimmed == "" {
+			config.LaunchHotkeyMain = nil
+		} else {
+			// создаём новую строку, чтобы не держаться за память структуры env
+			s := trimmed
+			config.LaunchHotkeyMain = &s
+		}
 	}
 
 	// Обновляем отметку времени успешной загрузки.
