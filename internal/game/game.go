@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/url"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -48,18 +49,19 @@ var defaultSegmentColor = color.RGBA{0x42, 0x42, 0x42, 0xFF} // #424242
 var refreshSegmentColor = color.RGBA{0x60, 0x7D, 0x8B, 0xFF} // #607D8B
 
 type Game struct {
-	PepeClient       *pepeunit.PepeunitClient
-	Units            UnitsByNodesResponse
-	StateData        map[string][][]string
-	KeyDownMap       map[ebiten.Key]bool // Состояние кнопок
-	CursorTick       int                 // Счётчик для мигания курсора при вводе текста
-	BackspaceFrames  int                 // Счётчик кадров удержания Backspace для автоповтора
-	SelectedSegments []int               // Хранение текущего выбора для каждого слоя
-	ActiveLayer      int                 // Индекс текущего слоя
-	InputMode        InputMode
-	TextInput        string
-	OnTextInputDone  func(string)
-	IsFirstWrite     bool
+	PepeClient        *pepeunit.PepeunitClient
+	Units             UnitsByNodesResponse
+	StateData         map[string][][]string
+	KeyDownMap        map[ebiten.Key]bool // Состояние кнопок
+	CursorTick        int                 // Счётчик для мигания курсора при вводе текста
+	BackspaceFrames   int                 // Счётчик кадров удержания Backspace для автоповтора
+	SelectedSegments  []int               // Хранение текущего выбора для каждого слоя
+	ActiveLayer       int                 // Индекс текущего слоя
+	InputMode         InputMode
+	TextInput         string
+	OnTextInputDone   func(string)
+	OnTextInputCancel func()
+	IsFirstWrite      bool
 	// Кэш JSON‑представления выбранного UnitNode для уменьшения аллокаций в отрисовке.
 	lastNodeInfoJSON    string
 	lastNodeUnitIdx     int
@@ -309,13 +311,19 @@ func (g *Game) StartTextInput(callback func(string)) {
 	g.InputMode = ModeTextInput
 	g.TextInput = ""
 	g.OnTextInputDone = callback
+	g.OnTextInputCancel = nil
 	g.CursorTick = 0
 	g.BackspaceFrames = 0
 }
 
-func (g *Game) AwaitTextInput(isFirstWrite bool) string {
+type textInputResult struct {
+	text      string
+	cancelled bool
+}
+
+func (g *Game) AwaitTextInput(isFirstWrite bool) (string, bool) {
 	// Создаем канал для передачи текста
-	resultChan := make(chan string)
+	resultChan := make(chan textInputResult, 1)
 
 	// Переключаем игру в режим ввода текста
 	g.InputMode = ModeTextInput
@@ -325,14 +333,22 @@ func (g *Game) AwaitTextInput(isFirstWrite bool) string {
 	g.BackspaceFrames = 0
 
 	// Определяем колбэк для завершения ввода
-	g.OnTextInputDone = func(input string) {
-		resultChan <- input
-		close(resultChan)
+	finish := func(res textInputResult) {
+		// На всякий случай: после завершения сбрасываем колбэки,
+		// чтобы повторные нажатия не пытались писать в уже закрытый канал.
+		g.OnTextInputDone = nil
+		g.OnTextInputCancel = nil
 		g.InputMode = ModeGame
+		resultChan <- res
+		close(resultChan)
 	}
 
+	g.OnTextInputDone = func(input string) { finish(textInputResult{text: input, cancelled: false}) }
+	g.OnTextInputCancel = func() { finish(textInputResult{text: "", cancelled: true}) }
+
 	// Блокируем выполнение функции до получения результата
-	return <-resultChan
+	res := <-resultChan
+	return res.text, res.cancelled
 }
 
 func (g *Game) Update() error {
@@ -340,8 +356,16 @@ func (g *Game) Update() error {
 
 	switch g.InputMode {
 	case ModeGame:
+		// ESC закрывает игру только по "первому нажатию" (edge-trigger),
+		// иначе после отмены ввода в ModeTextInput (где ESC = назад) клавиша
+		// остаётся зажатой и приводила к мгновенному выходу на следующем тике.
 		if ebiten.IsKeyPressed(ebiten.KeyEscape) {
-			return fmt.Errorf("game closed by user")
+			if !g.KeyDownMap[ebiten.KeyEscape] {
+				g.KeyDownMap[ebiten.KeyEscape] = true
+				return fmt.Errorf("game closed by user")
+			}
+		} else {
+			g.KeyDownMap[ebiten.KeyEscape] = false
 		}
 
 		// Обрабатываем результаты асинхронных операций (refresh units, MQTT publish).
@@ -503,9 +527,18 @@ func (g *Game) Update() error {
 						if g.SelectedSegments[2] == 0 {
 							fmt.Println("This is Add button")
 							go func() {
-								optionName := g.AwaitTextInput(true)
-								optionContent := g.AwaitTextInput(false)
-								g.AddOption(selectedNode.UUID, optionName, optionContent)
+								optionName, cancelled := g.AwaitTextInput(true)
+								if cancelled {
+									return
+								}
+								optionContent, cancelled := g.AwaitTextInput(false)
+								if cancelled {
+									return
+								}
+								if strings.TrimSpace(optionName) == "" {
+									return
+								}
+								_ = g.AddOption(selectedNode.UUID, optionName, optionContent)
 							}()
 						} else {
 							if stateData != nil {
@@ -556,6 +589,16 @@ func (g *Game) Update() error {
 	case ModeTextInput:
 		// Обновляем счётчик мигания курсора
 		g.CursorTick++
+
+		// ESC отменяет ввод и возвращает назад (в меню/бублик), не закрывая игру.
+		// Важно обработать это до Enter, чтобы отмена имела приоритет.
+		g.handleKey(ebiten.KeyEscape, func() {
+			if g.OnTextInputCancel != nil {
+				g.OnTextInputCancel()
+			} else {
+				g.InputMode = ModeGame
+			}
+		})
 
 		for _, char := range ebiten.InputChars() {
 			if char != '\n' && char != '\r' {
