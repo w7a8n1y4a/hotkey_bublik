@@ -227,7 +227,6 @@ func registerGlobalHotkey(client *pepeunit.PepeunitClient) {
 	}()
 }
 
-
 // Function for handling tray menu and actions
 func onReady(icon []byte, client *pepeunit.PepeunitClient) {
 	log.Println("systray onReady called")
