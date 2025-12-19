@@ -429,11 +429,11 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 		// Отображаем последние логи справа
 		logLabelText := "Последние логи:"
 
-		// Надпись справа на 2/3 высоты экрана
+		// Надпись справа на 1/2 высоты экрана
 		logColumnCenterX := cfg.ScreenWidth - valueColumnCenterX
 		logLabelWidth := text.BoundString(fontFace, logLabelText).Dx()
 		logLabelX := logColumnCenterX - logLabelWidth/2
-		labelY := cfg.ScreenHeight * 2 / 3
+		labelY := cfg.ScreenHeight * 1 / 2
 		text.Draw(
 			screen,
 			logLabelText,
@@ -487,7 +487,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 
 				labelText := "UnitNode Состояние:"
 
-				// Надпись слева на 2/3 высоты экрана
+				// Надпись слева на 1/2 высоты экрана
 				labelWidth := text.BoundString(fontFace, labelText).Dx()
 				labelX := valueColumnCenterX - labelWidth/2
 				text.Draw(

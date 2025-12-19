@@ -85,8 +85,8 @@ type Game struct {
 	lastNodeUnitNodeIdx int
 
 	// Кэш последних логов для отображения
-	lastLogEntries     []string
-	lastLogUpdateTime  time.Time
+	lastLogEntries    []string
+	lastLogUpdateTime time.Time
 
 	// Спинер загрузки/отправки
 	spinnerImage       *ebiten.Image
@@ -925,7 +925,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawSpinner(screen)
 
 	// Текстовый статус MQTT‑соединения.
-	g.drawMQTTStatus(screen)
+	// g.drawMQTTStatus(screen)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
