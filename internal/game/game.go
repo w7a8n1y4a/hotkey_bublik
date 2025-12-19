@@ -834,7 +834,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 						selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
 						stateData := g.StateData[selectedNode.UUID]
 
-						items = append(items, []string{"Create New Option"})
+						items = append(items, []string{"Создание команды"})
 
 						items = append(items, stateData...)
 					}

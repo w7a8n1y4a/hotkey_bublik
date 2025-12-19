@@ -460,7 +460,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 				var hintText string
 				if g.SelectedSegments[2] == 0 {
 					// "Create New Option"
-					hintText = "ЛКМ: создать новое команду | ПКМ: назад"
+					hintText = "ЛКМ: создать новую команду | ПКМ: назад"
 				} else if g.SelectedSegments[2] > 0 && g.SelectedSegments[2]-1 < len(stateData) {
 					// Выбрана существующая опция
 					hintText = "ЛКМ: отправить команду | ПКМ: назад | DELETE: удалить команду | SPACE: установить хоткей | CTRL+SPACE: сбросить хоткей"
