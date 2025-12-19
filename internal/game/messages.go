@@ -234,10 +234,10 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 		// Для третьего бублика (options) отображаем значение слева от бублика
 		if layerIndex == 2 {
 			// Пытаемся отрендерить значение как JSON
-			labelText := "Text Value:"
+			labelText := "Текст команды:"
 			if pretty, ok := tryPrettyJSON(valueText); ok {
 				valueText = pretty
-				labelText = "JSON Value:"
+				labelText = "JSON команды:"
 			}
 
 			// Надпись слева, по высоте примерно на уровне названия сегмента
@@ -285,8 +285,8 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 	// Отображение текущего хоткея для опции на третьем бублике — в правой колонке,
 	// по аналогии с текстом под "Value:".
 	if layerIndex == 2 {
-		hotkeyLabel := "Hotkey:"
-		hotkeyValue := "No hotkey"
+		hotkeyLabel := "Горячие клавиши:"
+		hotkeyValue := "Не установлены"
 
 		if len(items[g.SelectedSegments[layerIndex]]) >= 3 {
 			rawHotkey := strings.TrimSpace(items[g.SelectedSegments[layerIndex]][2])
@@ -314,18 +314,8 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 		maxWidth := int(cfg.ScreenWidth / 5)
 		hotkeyTextX := hotkeyColumnCenterX - maxWidth/2
 
-		// Определяем, является ли это выбранной опцией (не "Create New Option")
-		isSelectedOption := g.SelectedSegments[layerIndex] > 0 && g.SelectedSegments[layerIndex]-1 < len(items)
-		isActiveLayer := g.ActiveLayer == 2
-
-		// Если это выбранная опция, показываем подсказку о редактировании
-		var displayText string
-		if isSelectedOption && isActiveLayer {
-			// Показываем подсказку о том, что можно кликнуть для редактирования
-			displayText = hotkeyValue + "\n\n(Click to edit,\nRight-click to clear)"
-		} else {
-			displayText = hotkeyValue
-		}
+		// Показываем только значение хоткея
+		displayText := hotkeyValue
 
 		DrawLeftAlignedText(
 			screen,
@@ -359,7 +349,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 					g.lastNodeUnitNodeIdx = selectedNodeIdx
 				}
 
-				labelText := "UnitNode Info:"
+				labelText := "UnitNode Состояние:"
 
 				// Надпись слева, на уровне заголовка второго бублика
 				labelY := centerY - fontSize/2
@@ -392,68 +382,108 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 		}
 	}
 
-	// Подсказка о переходе в Pepeunit Instance по клавише SPACE.
-	// Показывается только на тех слоях и сегментах, где переход действительно возможен.
+	// Подсказки под бубликами с информацией о доступных действиях
 	switch {
-	// Первый бублик: переход на страницу Unit.
+	// Первый бублик
 	case g.ActiveLayer == 0 && layerIndex == 0:
 		seg := g.SelectedSegments[0]
-		// 0‑й сегмент — "Обновить список юнитов", переход по SPACE там недоступен.
-		if seg <= 0 || seg > len(g.Units.Units) {
-			break
+		var hintText string
+		if seg == 0 {
+			// 0‑й сегмент — "Обновить список юнитов"
+			hintText = "ЛКМ: обновить список юнитов"
+		} else if seg > 0 && seg <= len(g.Units.Units) {
+			// Выбран конкретный Unit
+			unit := g.Units.Units[seg-1]
+			hintText = "ЛКМ: выбрать Unit | SPACE: открыть \"" + strings.TrimSpace(unit.Name) + "\" в браузере"
 		}
-		unit := g.Units.Units[seg-1]
-		hintText := "SPACE: открыть Unit \"" + strings.TrimSpace(unit.Name) + "\" в Pepeunit Instance"
 
-		hintWidth := text.BoundString(fontFace, hintText).Dx()
-		hintX := cfg.ScreenWidth/2 - hintWidth/2
-		hintY := cfg.ScreenHeight - fontSize*2
-		if hintY < 0 {
-			hintY = fontSize
+		if hintText != "" {
+			hintWidth := text.BoundString(fontFace, hintText).Dx()
+			hintX := cfg.ScreenWidth/2 - hintWidth/2
+			hintY := cfg.ScreenHeight - fontSize*2
+			if hintY < 0 {
+				hintY = fontSize
+			}
+			text.Draw(
+				screen,
+				hintText,
+				fontFace,
+				hintX,
+				hintY,
+				color.RGBA{200, 200, 200, 255},
+			)
 		}
-		text.Draw(
-			screen,
-			hintText,
-			fontFace,
-			hintX,
-			hintY,
-			color.RGBA{200, 200, 200, 255},
-		)
 
-	// Второй бублик: переход на страницу UnitNode.
+	// Второй бублик
 	case g.ActiveLayer == 1 && layerIndex == 1:
 		unitIdx := g.SelectedSegments[0] - 1
 		nodeIdx := g.SelectedSegments[1]
-		if unitIdx < 0 || unitIdx >= len(g.Units.Units) {
-			break
-		}
-		selectedUnit := g.Units.Units[unitIdx]
-		if nodeIdx < 0 || nodeIdx >= len(selectedUnit.UnitNodes) {
-			break
-		}
-		selectedNode := selectedUnit.UnitNodes[nodeIdx]
+		if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+			selectedUnit := g.Units.Units[unitIdx]
+			if nodeIdx >= 0 && nodeIdx < len(selectedUnit.UnitNodes) {
+				selectedNode := selectedUnit.UnitNodes[nodeIdx]
 
-		entityName := strings.TrimSpace(selectedNode.TopicName)
-		if entityName == "" {
-			entityName = selectedNode.UUID
+				entityName := strings.TrimSpace(selectedNode.TopicName)
+				if entityName == "" {
+					entityName = selectedNode.UUID
+				}
+
+				hintText := "ЛКМ: выбрать UnitNode | ПКМ: назад | SPACE: открыть \"" + entityName + "\" в браузере"
+
+				hintWidth := text.BoundString(fontFace, hintText).Dx()
+				hintX := cfg.ScreenWidth/2 - hintWidth/2
+				hintY := cfg.ScreenHeight - fontSize*2
+				if hintY < 0 {
+					hintY = fontSize
+				}
+				text.Draw(
+					screen,
+					hintText,
+					fontFace,
+					hintX,
+					hintY,
+					color.RGBA{200, 200, 200, 255},
+				)
+			}
 		}
 
-		hintText := "SPACE: открыть UnitNode \"" + entityName + "\" в Pepeunit Instance"
+	// Третий бублик
+	case g.ActiveLayer == 2 && layerIndex == 2:
+		unitIdx := g.SelectedSegments[0] - 1
+		selectedNodeIdx := g.SelectedSegments[1]
+		if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+			selectedUnit := g.Units.Units[unitIdx]
+			if selectedNodeIdx < len(selectedUnit.UnitNodes) {
+				selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
+				stateData := g.StateData[selectedNode.UUID]
 
-		hintWidth := text.BoundString(fontFace, hintText).Dx()
-		hintX := cfg.ScreenWidth/2 - hintWidth/2
-		hintY := cfg.ScreenHeight - fontSize*2
-		if hintY < 0 {
-			hintY = fontSize
+				var hintText string
+				if g.SelectedSegments[2] == 0 {
+					// "Create New Option"
+					hintText = "ЛКМ: создать новое команду | ПКМ: назад"
+				} else if g.SelectedSegments[2] > 0 && g.SelectedSegments[2]-1 < len(stateData) {
+					// Выбрана существующая опция
+					hintText = "ЛКМ: отправить команду | ПКМ: назад | DELETE: удалить команду | SPACE: установить хоткей | CTRL+SPACE: сбросить хоткей"
+				}
+
+				if hintText != "" {
+					hintWidth := text.BoundString(fontFace, hintText).Dx()
+					hintX := cfg.ScreenWidth/2 - hintWidth/2
+					hintY := cfg.ScreenHeight - fontSize*2
+					if hintY < 0 {
+						hintY = fontSize
+					}
+					text.Draw(
+						screen,
+						hintText,
+						fontFace,
+						hintX,
+						hintY,
+						color.RGBA{200, 200, 200, 255},
+					)
+				}
+			}
 		}
-		text.Draw(
-			screen,
-			hintText,
-			fontFace,
-			hintX,
-			hintY,
-			color.RGBA{200, 200, 200, 255},
-		)
 	}
 }
 
@@ -512,9 +542,9 @@ func (g *Game) drawTextInputMessages(screen *ebiten.Image) {
 	centerX := cfg.ScreenWidth / 2
 	centerY := cfg.ScreenHeight / 2
 
-	targetText := "Write name Option"
+	targetText := "Введите название команды"
 	if !g.IsFirstWrite {
-		targetText = "Write UnitNode state"
+		targetText = "Введите тело команды: текст или JSON"
 	}
 
 	DrawCenteredText(
@@ -531,7 +561,7 @@ func (g *Game) drawTextInputMessages(screen *ebiten.Image) {
 	DrawCenteredText(
 		screen,
 		fontFace,
-		"Enter text or <CTRL + V>",
+		"Введите текст или используйте <CTRL + v>",
 		centerX,
 		centerY/2,
 		300,
@@ -548,6 +578,19 @@ func (g *Game) drawTextInputMessages(screen *ebiten.Image) {
 		800,
 		4,
 		color.White,
+	)
+
+	// Подсказки для клавиш
+	hintText := "ENTER: сохранить | ESC: отменить"
+	DrawCenteredText(
+		screen,
+		fontFace,
+		hintText,
+		centerX,
+		centerY+100,
+		600,
+		4,
+		color.RGBA{200, 200, 200, 255},
 	)
 }
 
@@ -582,7 +625,7 @@ func (g *Game) drawHotkeyInputMessages(screen *ebiten.Image) {
 		optionName = "option"
 	}
 
-	targetText := "Set hotkey for: " + optionName
+	targetText := "Горячие клавиши для команды: " + optionName
 
 	DrawCenteredText(
 		screen,
@@ -598,7 +641,7 @@ func (g *Game) drawHotkeyInputMessages(screen *ebiten.Image) {
 	DrawCenteredText(
 		screen,
 		fontFace,
-		"Press key combination",
+		"Нажмите сочетание клавиш",
 		centerX,
 		centerY/2,
 		400,
@@ -609,7 +652,7 @@ func (g *Game) drawHotkeyInputMessages(screen *ebiten.Image) {
 	// Отображаем текущую комбинацию клавиш
 	hotkeyDisplay := g.HotkeyInputCurrent
 	if hotkeyDisplay == "" {
-		hotkeyDisplay = "No keys pressed"
+		hotkeyDisplay = "Клавиши ещё не нажаты"
 	} else {
 		hotkeyDisplay = hotkeys.FormatHotkeyFromString(hotkeyDisplay)
 	}
@@ -626,7 +669,7 @@ func (g *Game) drawHotkeyInputMessages(screen *ebiten.Image) {
 	)
 
 	// Подсказки
-	hintText := "ENTER: Save | ESC: Cancel | BACKSPACE/DELETE: Clear current"
+	hintText := "ENTER: сохранить | ESC: отменить | BACKSPACE/DELETE: Сбросить"
 	DrawCenteredText(
 		screen,
 		fontFace,

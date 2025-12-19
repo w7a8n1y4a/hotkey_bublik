@@ -131,7 +131,7 @@ func captureKeyFromEbiten() string {
 // Если строка пустая, возвращает "No hotkey".
 func FormatHotkeyFromString(hotkeyStr string) string {
 	if strings.TrimSpace(hotkeyStr) == "" {
-		return "No hotkey"
+		return "Не установлены"
 	}
 
 	// Пытаемся распарсить строку для нормализации
@@ -152,4 +152,3 @@ func ValidateHotkey(hotkeyStr string) error {
 	_, _, _, err := ParseHotkeySpec(hotkeyStr)
 	return err
 }
-
