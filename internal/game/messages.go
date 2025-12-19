@@ -234,7 +234,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 
 	// Позиция наверху самого внешнего бублика (активного слоя)
 	activeLayerOuterRadius := cfg.RadiusInner + layerIndex*60 + cfg.ThickSegment
-	segmentLabelY := cfg.PickerCenterY - activeLayerOuterRadius - 33 // 33 пикселя выше внешнего края активного слоя (учитывая больший шрифт)
+	segmentLabelY := cfg.PickerCenterY - activeLayerOuterRadius - 10 // 10 пикселей выше внешнего края активного слоя (значительно ниже)
 
 	DrawCenteredText(
 		screen,
@@ -446,11 +446,8 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 
 				labelText := "UnitNode Состояние:"
 
-				// Надпись слева, зеркально "Текст команды:" в нижней половине экрана
-				// Рассчитываем centerY как для третьего слоя
-				optionsCenterY := centerOption - optionExternalLen + fontSize
-				// Зеркальное отражение относительно середины экрана
-				labelY := cfg.ScreenHeight - optionsCenterY + fontSize/2
+				// Надпись слева на 2/3 высоты экрана
+				labelY := cfg.ScreenHeight * 2 / 3
 				labelWidth := text.BoundString(fontFace, labelText).Dx()
 				labelX := valueColumnCenterX - labelWidth/2
 				text.Draw(
