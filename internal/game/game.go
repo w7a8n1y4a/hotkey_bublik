@@ -1,12 +1,14 @@
 package game
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"image/color"
 	"math"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -28,6 +30,13 @@ const (
 	ModeTextInput
 	ModeHotkeyInput
 )
+
+// Структура для записи лога
+type LogEntry struct {
+	CreateDatetime string `json:"create_datetime"`
+	Level          string `json:"level"`
+	Text           string `json:"text"`
+}
 
 // Палитра базовых цветов Unit, близкая к Google Material Design.
 // Используется для первого бублика: цвет сегмента определяется по индексу Unit через остаток от деления на 10.
@@ -74,6 +83,10 @@ type Game struct {
 	lastNodeInfoJSON    string
 	lastNodeUnitIdx     int
 	lastNodeUnitNodeIdx int
+
+	// Кэш последних логов для отображения
+	lastLogEntries     []string
+	lastLogUpdateTime  time.Time
 
 	// Спинер загрузки/отправки
 	spinnerImage       *ebiten.Image
@@ -976,6 +989,68 @@ func (g *Game) resetSelection() {
 		g.SelectedSegments[2] = 0
 	}
 	g.ActiveLayer = 0
+}
+
+// readLogEntries читает последние 8 записей из log.json и форматирует их
+func (g *Game) readLogEntries() []string {
+	// Кэшируем логи, обновляем не чаще раза в секунду
+	if time.Since(g.lastLogUpdateTime) < time.Second {
+		return g.lastLogEntries
+	}
+
+	file, err := os.Open("log.json")
+	if err != nil {
+		return g.lastLogEntries
+	}
+	defer file.Close()
+
+	var entries []LogEntry
+	scanner := bufio.NewScanner(file)
+
+	// Читаем файл построчно, так как он может быть большим
+	var lines []string
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return g.lastLogEntries
+	}
+
+	// Парсим JSON объекты из строк
+	for _, line := range lines {
+		var entry LogEntry
+		if err := json.Unmarshal([]byte(line), &entry); err == nil {
+			entries = append(entries, entry)
+		}
+	}
+
+	// Берем последние 8 записей
+	start := len(entries) - 8
+	if start < 0 {
+		start = 0
+	}
+	lastEntries := entries[start:]
+
+	// Форматируем записи в нужном формате с ascending order (снизу самые новые)
+	var formatted []string
+	for _, entry := range lastEntries {
+		// Парсим время и форматируем в нужный формат
+		parsedTime, err := time.Parse(time.RFC3339, entry.CreateDatetime)
+		if err != nil {
+			// Если не удалось распарсить, используем оригинальную строку
+			formatted = append(formatted, fmt.Sprintf("%s - %s - %s", entry.CreateDatetime[:19], entry.Level, entry.Text))
+		} else {
+			formatted = append(formatted, fmt.Sprintf("%s - %s - %s", parsedTime.Format("2006-01-02 15:04:05"), entry.Level, entry.Text))
+		}
+	}
+
+	g.lastLogEntries = formatted
+	g.lastLogUpdateTime = time.Now()
+	return formatted
 }
 
 // startSpinnerOp активирует спинер или добавляет ещё одну операцию,

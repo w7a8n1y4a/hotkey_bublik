@@ -424,10 +424,51 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 		)
 	}
 
-	// На втором и третьем бубликах дополнительно показываем JSON‑информацию о UnitNode слева
-	if layerIndex == 1 || layerIndex == 2 {
+	// На всех слоях показываем логи справа
+	if layerIndex >= 0 {
+		// Отображаем последние логи справа
+		logLabelText := "Последние логи:"
+
+		// Надпись справа на 2/3 высоты экрана
+		logColumnCenterX := cfg.ScreenWidth - valueColumnCenterX
+		logLabelWidth := text.BoundString(fontFace, logLabelText).Dx()
+		logLabelX := logColumnCenterX - logLabelWidth/2
+		labelY := cfg.ScreenHeight * 2 / 3
+		text.Draw(
+			screen,
+			logLabelText,
+			fontFace,
+			logLabelX,
+			labelY,
+			color.White,
+		)
+
+		// Логи ниже подписи
+		logTextY := labelY + fontSize + 10
+		logMaxWidth := int(cfg.ScreenWidth / 5)
+		logTextX := logColumnCenterX - logMaxWidth/2
+
+		// Получаем отформатированные логи
+		logEntries := g.readLogEntries()
+		logText := strings.Join(logEntries, "\n")
+
+		// Используем меньший шрифт для логов
+		logFontSize := 18
+		logFontFace := LoadFont(float64(logFontSize))
+		DrawLeftAlignedText(
+			screen,
+			logFontFace,
+			logText,
+			logTextX,
+			logTextY,
+			logMaxWidth,
+			2,                              // Меньший межстрочный интервал
+			color.RGBA{200, 200, 200, 255}, // Серый цвет для логов
+		)
+
+		// На втором и третьем бубликах дополнительно показываем JSON‑информацию о UnitNode слева
 		unitIdx := g.SelectedSegments[0] - 1 // 0‑й сегмент — дефолтный
-		if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+		if unitIdx >= 0 && unitIdx < len(g.Units.Units) && (layerIndex == 1 || layerIndex == 2) {
 			selectedUnit := g.Units.Units[unitIdx]
 			selectedNodeIdx := g.SelectedSegments[1]
 			if selectedNodeIdx < len(selectedUnit.UnitNodes) {
@@ -447,7 +488,6 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 				labelText := "UnitNode Состояние:"
 
 				// Надпись слева на 2/3 высоты экрана
-				labelY := cfg.ScreenHeight * 2 / 3
 				labelWidth := text.BoundString(fontFace, labelText).Dx()
 				labelX := valueColumnCenterX - labelWidth/2
 				text.Draw(
