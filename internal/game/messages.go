@@ -290,7 +290,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 				selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
 
 				// "UnitNode:" в середине между центром бублика и внутренним краем первого сегмента (нижняя часть)
-				unitNodeLabelY := cfg.PickerCenterY + (cfg.RadiusInner / 2)
+				unitNodeLabelY := cfg.PickerCenterY + (cfg.RadiusInner / 4)
 				DrawCenteredText(
 					screen,
 					fontFace,
