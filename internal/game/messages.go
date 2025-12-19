@@ -187,6 +187,11 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 		return
 	}
 
+	// Показываем подписи только для активного слоя
+	if layerIndex != g.ActiveLayer {
+		return
+	}
+
 	if g.SelectedSegments[layerIndex] < 0 || len(items) <= g.SelectedSegments[layerIndex] {
 		return
 	}
@@ -195,6 +200,10 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 
 	fontSize := 24
 	fontFace := LoadFont(float64(fontSize))
+
+	// Отдельный больший шрифт для надписи выбираемого сегмента
+	segmentFontSize := 32
+	segmentFontFace := LoadFont(float64(segmentFontSize))
 
 	centerX := int(cfg.ScreenWidth / 2)
 	valueColumnCenterX := int(cfg.ScreenWidth / 5) // вертикальная линия центра левой колонки значения (1/5 экрана)
@@ -215,17 +224,103 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 		centerY = centerOption - optionExternalLen + fontSize
 	}
 
-	// Основной текст (название элемента)
+	// Основной текст (название элемента) - выводится наверху бублика
+	// для выбранного сегмента с увеличенным лимитом символов (минимум 50)
+	selectedSegmentText := items[g.SelectedSegments[layerIndex]][0]
+	maxWidth := cfg.RadiusInner * 2 // Увеличиваем ширину для размещения большего количества символов
+	if maxWidth < 50*12 {           // 50 символов примерно по 12 пикселей каждый
+		maxWidth = 50 * 12
+	}
+
+	// Позиция наверху самого внешнего бублика (активного слоя)
+	activeLayerOuterRadius := cfg.RadiusInner + layerIndex*60 + cfg.ThickSegment
+	segmentLabelY := cfg.PickerCenterY - activeLayerOuterRadius - 33 // 33 пикселя выше внешнего края активного слоя (учитывая больший шрифт)
+
 	DrawCenteredText(
 		screen,
-		fontFace,
-		items[g.SelectedSegments[layerIndex]][0],
+		segmentFontFace,
+		selectedSegmentText,
 		centerX,
-		centerY,
-		cfg.RadiusInner,
+		segmentLabelY,
+		maxWidth,
 		4,
 		color.White,
 	)
+
+	// Отображение выбранного Unit в центре бублика (для слоев >= 1)
+	if layerIndex == g.ActiveLayer && g.ActiveLayer >= 1 {
+		unitIdx := g.SelectedSegments[0] - 1
+		if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+			selectedUnit := g.Units.Units[unitIdx]
+
+			// "Unit:" в середине между центром бублика и внутренним краем первого сегмента (верхняя часть)
+			unitLabelY := cfg.PickerCenterY - (cfg.RadiusInner / 2)
+			DrawCenteredText(
+				screen,
+				fontFace,
+				"Unit:",
+				centerX,
+				unitLabelY,
+				400, // Увеличиваем ширину для длинных названий
+				4,
+				color.White,
+			)
+
+			// Название Unit ниже метки
+			unitNameY := unitLabelY + 35
+			DrawCenteredText(
+				screen,
+				fontFace,
+				selectedUnit.Name,
+				centerX,
+				unitNameY,
+				400, // Увеличиваем ширину для длинных названий
+				4,
+				color.White,
+			)
+		}
+	}
+
+	// Отображение выбранного UnitNode в центре бублика (для слоев >= 2)
+	if layerIndex == g.ActiveLayer && g.ActiveLayer >= 2 {
+		unitIdx := g.SelectedSegments[0] - 1
+		if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+			selectedUnit := g.Units.Units[unitIdx]
+			if g.SelectedSegments[1] < len(selectedUnit.UnitNodes) {
+				selectedNode := selectedUnit.UnitNodes[g.SelectedSegments[1]]
+
+				// "UnitNode:" в середине между центром бублика и внутренним краем первого сегмента (нижняя часть)
+				unitNodeLabelY := cfg.PickerCenterY + (cfg.RadiusInner / 2)
+				DrawCenteredText(
+					screen,
+					fontFace,
+					"UnitNode:",
+					centerX,
+					unitNodeLabelY,
+					400, // Увеличиваем ширину для длинных названий
+					4,
+					color.White,
+				)
+
+				// Название UnitNode ниже метки
+				unitNodeNameY := unitNodeLabelY + 35
+				nodeName := selectedNode.TopicName
+				if nodeName == "" {
+					nodeName = selectedNode.UUID
+				}
+				DrawCenteredText(
+					screen,
+					fontFace,
+					nodeName,
+					centerX,
+					unitNodeNameY,
+					400, // Увеличиваем ширину для длинных названий
+					4,
+					color.White,
+				)
+			}
+		}
+	}
 
 	// Дополнительный текст (значение опции), если он есть
 	if len(items[g.SelectedSegments[layerIndex]]) >= 2 {
@@ -329,8 +424,8 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 		)
 	}
 
-	// На втором бублике дополнительно показываем JSON‑информацию о UnitNode слева
-	if layerIndex == 1 {
+	// На втором и третьем бубликах дополнительно показываем JSON‑информацию о UnitNode слева
+	if layerIndex == 1 || layerIndex == 2 {
 		unitIdx := g.SelectedSegments[0] - 1 // 0‑й сегмент — дефолтный
 		if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
 			selectedUnit := g.Units.Units[unitIdx]
@@ -351,8 +446,11 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 
 				labelText := "UnitNode Состояние:"
 
-				// Надпись слева, на уровне заголовка второго бублика
-				labelY := centerY - fontSize/2
+				// Надпись слева, зеркально "Текст команды:" в нижней половине экрана
+				// Рассчитываем centerY как для третьего слоя
+				optionsCenterY := centerOption - optionExternalLen + fontSize
+				// Зеркальное отражение относительно середины экрана
+				labelY := cfg.ScreenHeight - optionsCenterY + fontSize/2
 				labelWidth := text.BoundString(fontFace, labelText).Dx()
 				labelX := valueColumnCenterX - labelWidth/2
 				text.Draw(
@@ -368,14 +466,18 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 				valueTextY := labelY + fontSize + 10
 				maxWidth := int(cfg.ScreenWidth / 5)
 				valueTextX := valueColumnCenterX - maxWidth/2
+
+				// Используем меньший шрифт для JSON чтобы уместить на экране
+				smallFontSize := 20
+				smallFontFace := LoadFont(float64(smallFontSize))
 				DrawLeftAlignedText(
 					screen,
-					fontFace,
+					smallFontFace,
 					g.lastNodeInfoJSON,
 					valueTextX,
 					valueTextY,
 					maxWidth,
-					4,
+					2, // Меньший межстрочный интервал
 					color.White,
 				)
 			}
