@@ -78,73 +78,40 @@ func FetchUnits(client *pepeunit.PepeunitClient) (UnitsByNodesResponse, error) {
 }
 
 func (g *Game) saveStateRemote() error {
-	fmt.Printf("DEBUG: saveStateRemote called\n")
 	if g.PepeClient == nil || g.PepeClient.GetRESTClient() == nil {
-		fmt.Printf("DEBUG: PepeClient or REST client not available\n")
 		return nil
-	}
-
-	fmt.Printf("DEBUG: current state data has %d nodes\n", len(g.StateData))
-	for nodeUUID, options := range g.StateData {
-		fmt.Printf("DEBUG: node %s: %d options\n", nodeUUID, len(options))
 	}
 
 	ctx := context.Background()
 	payload, err := json.Marshal(g.StateData)
 	if err != nil {
-		fmt.Printf("DEBUG: failed to marshal state data: %v\n", err)
 		return err
 	}
 
 	payloadStr := string(payload)
-	fmt.Printf("DEBUG: saving payload (%d bytes): %s\n", len(payloadStr), payloadStr)
 
 	err = g.PepeClient.SetStateStorage(ctx, payloadStr)
-	if err != nil {
-		fmt.Printf("DEBUG: failed to save state storage: %v\n", err)
-	} else {
-		fmt.Printf("DEBUG: state saved successfully\n")
-	}
 	return err
 }
 
 func (g *Game) AddOption(unitNodeUUID, optionName, optionValue string) error {
-	fmt.Printf("DEBUG: AddOption called: node=%s, name='%s', value='%s'\n", unitNodeUUID, optionName, optionValue)
 	if _, ok := g.StateData[unitNodeUUID]; !ok {
-		fmt.Printf("DEBUG: creating new state data entry for node %s\n", unitNodeUUID)
 		g.StateData[unitNodeUUID] = [][]string{}
 	}
 
-	existingOptions := len(g.StateData[unitNodeUUID])
-	fmt.Printf("DEBUG: node %s had %d options before\n", unitNodeUUID, existingOptions)
-
 	for i, pair := range g.StateData[unitNodeUUID] {
 		if len(pair) > 0 && pair[0] == optionName {
-			fmt.Printf("DEBUG: updating existing option at index %d\n", i)
 			if len(pair) == 1 {
 				g.StateData[unitNodeUUID][i] = append(pair, optionValue)
 			} else {
 				g.StateData[unitNodeUUID][i][1] = optionValue
 			}
-			err := g.saveStateRemote()
-			if err != nil {
-				fmt.Printf("DEBUG: failed to save updated option: %v\n", err)
-			} else {
-				fmt.Printf("DEBUG: option updated successfully, node %s now has %d options\n", unitNodeUUID, len(g.StateData[unitNodeUUID]))
-			}
-			return err
+			return g.saveStateRemote()
 		}
 	}
 
-	fmt.Printf("DEBUG: adding new option\n")
 	g.StateData[unitNodeUUID] = append(g.StateData[unitNodeUUID], []string{optionName, optionValue})
-	err := g.saveStateRemote()
-	if err != nil {
-		fmt.Printf("DEBUG: failed to save new option: %v\n", err)
-	} else {
-		fmt.Printf("DEBUG: new option added successfully, node %s now has %d options\n", unitNodeUUID, len(g.StateData[unitNodeUUID]))
-	}
-	return err
+	return g.saveStateRemote()
 }
 
 func (g *Game) RemoveOption(unitNodeUUID, optionName string) error {

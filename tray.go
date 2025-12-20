@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/getlantern/systray"
 	pepeunit "github.com/w7a8n1y4a/pepeunit_go_client"
 )
@@ -27,5 +25,5 @@ func onReady(icon []byte, client *pepeunit.PepeunitClient) {
 }
 
 func onExit() {
-	fmt.Println("Приложение завершено")
+	// Application exit
 }

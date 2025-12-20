@@ -31,7 +31,10 @@ func (g *Game) Update() error {
 		case res := <-g.refreshResultCh:
 			g.refreshInProgress = false
 			if res.err != nil {
-				fmt.Println("failed to refresh units:", res.err)
+				// Log error through PepeunitClient
+				if g.PepeClient != nil {
+					g.PepeClient.GetLogger().Error(fmt.Sprintf("Failed to refresh units: %v", res.err))
+				}
 			} else {
 				g.Units = res.data
 				g.resetSelection()
@@ -44,7 +47,10 @@ func (g *Game) Update() error {
 		case res := <-g.mqttResultCh:
 			g.mqttInProgress = false
 			if res.err != nil {
-				fmt.Println("failed to publish MQTT message:", res.err)
+				// Log error through PepeunitClient
+				if g.PepeClient != nil {
+					g.PepeClient.GetLogger().Error(fmt.Sprintf("Failed to publish MQTT message: %v", res.err))
+				}
 				g.MQTTStatus = "MQTT: error: " + res.err.Error()
 			} else {
 				g.MQTTStatus = "MQTT: last publish OK"
@@ -130,23 +136,20 @@ func (g *Game) Update() error {
 			case 2:
 				unitIdx := g.SelectedSegments[0] - 1
 				selectedNodeIdx := g.SelectedSegments[1]
-				fmt.Printf("DEBUG: Space pressed on layer 2, unitIdx=%d, selectedNodeIdx=%d, segment2=%d\n", unitIdx, selectedNodeIdx, g.SelectedSegments[2])
 				if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
 					selectedUnit := g.Units.Units[unitIdx]
-					fmt.Printf("DEBUG: selected unit: %s\n", selectedUnit.Name)
 					if selectedNodeIdx < len(selectedUnit.UnitNodes) {
 						selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
-						fmt.Printf("DEBUG: selected node: %s\n", selectedNode.UUID)
 						stateData := g.StateData[selectedNode.UUID]
-						fmt.Printf("DEBUG: stateData length: %d\n", len(stateData))
 						if g.SelectedSegments[2] > 0 && g.SelectedSegments[2]-1 < len(stateData) {
 							optionName := stateData[g.SelectedSegments[2]-1][0]
-							fmt.Printf("DEBUG: setting hotkey for option: %s\n", optionName)
 
 							if ebiten.IsKeyPressed(ebiten.KeyControl) {
-								fmt.Println("DEBUG: clearing hotkey")
 								if err := g.SetOptionHotkey(selectedNode.UUID, optionName, ""); err != nil {
-									fmt.Println("Error clearing hotkey:", err)
+									// Log error through PepeunitClient
+									if g.PepeClient != nil {
+										g.PepeClient.GetLogger().Error(fmt.Sprintf("Error clearing hotkey for command '%s' node '%s': %v", optionName, selectedNode.UUID, err))
+									}
 								} else {
 									// Логирование очистки hotkey
 									if g.PepeClient != nil {
@@ -154,17 +157,17 @@ func (g *Game) Update() error {
 									}
 								}
 							} else {
-								fmt.Println("DEBUG: awaiting hotkey input")
 								go func() {
 									hotkey, cancelled := g.AwaitHotkeyInput(selectedNode.UUID, optionName)
-									fmt.Printf("DEBUG: hotkey input result: hotkey='%s', cancelled=%v\n", hotkey, cancelled)
 									if cancelled {
 										return
 									}
 									if err := g.SetOptionHotkey(selectedNode.UUID, optionName, hotkey); err != nil {
-										fmt.Println("Error setting hotkey:", err)
+										// Log error through PepeunitClient
+										if g.PepeClient != nil {
+											g.PepeClient.GetLogger().Error(fmt.Sprintf("Error setting hotkey for command '%s' node '%s': %v", optionName, selectedNode.UUID, err))
+									}
 									} else {
-										fmt.Printf("DEBUG: hotkey set successfully: %s -> %s\n", optionName, hotkey)
 										// Логирование установки hotkey
 										if g.PepeClient != nil {
 											g.PepeClient.GetLogger().Info(fmt.Sprintf("Set hotkey '%s' for command '%s'", hotkey, optionName))
@@ -172,14 +175,8 @@ func (g *Game) Update() error {
 									}
 								}()
 							}
-						} else {
-							fmt.Printf("DEBUG: invalid segment selection: segment2=%d, stateData length=%d\n", g.SelectedSegments[2], len(stateData))
 						}
-					} else {
-						fmt.Printf("DEBUG: invalid selectedNodeIdx: %d >= %d\n", selectedNodeIdx, len(selectedUnit.UnitNodes))
 					}
-				} else {
-					fmt.Printf("DEBUG: invalid unitIdx: %d >= %d\n", unitIdx, len(g.Units.Units))
 				}
 			}
 		})
@@ -197,7 +194,10 @@ func (g *Game) Update() error {
 							optionName := stateData[g.SelectedSegments[2]-1][0]
 							err := g.RemoveOption(selectedNode.UUID, optionName)
 							if err != nil {
-								fmt.Println("Error removing option:", err)
+								// Log error through PepeunitClient
+								if g.PepeClient != nil {
+									g.PepeClient.GetLogger().Error(fmt.Sprintf("Error removing option '%s' from node '%s': %v", optionName, selectedNode.UUID, err))
+								}
 							}
 						}
 					}
@@ -226,67 +226,46 @@ func (g *Game) Update() error {
 			} else if g.ActiveLayer == 2 {
 				unitIdx := g.SelectedSegments[0] - 1
 				selectedNodeIdx := g.SelectedSegments[1]
-				fmt.Printf("DEBUG: Left click on layer 2, unitIdx=%d, selectedNodeIdx=%d, segment2=%d\n", unitIdx, selectedNodeIdx, g.SelectedSegments[2])
 				if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
 					selectedUnit := g.Units.Units[unitIdx]
-					fmt.Printf("DEBUG: selected unit: %s\n", selectedUnit.Name)
 					if selectedNodeIdx < len(selectedUnit.UnitNodes) {
 						selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
-						fmt.Printf("DEBUG: selected node: %s\n", selectedNode.UUID)
 						stateData := g.StateData[selectedNode.UUID]
-						fmt.Printf("DEBUG: stateData length: %d\n", len(stateData))
 						if g.SelectedSegments[2] == 0 {
-							fmt.Println("DEBUG: Add button clicked - creating new command")
 							go func() {
-								fmt.Println("DEBUG: awaiting option name...")
 								optionName, cancelled := g.AwaitTextInput(true)
-								fmt.Printf("DEBUG: option name result: '%s', cancelled=%v\n", optionName, cancelled)
 								if cancelled {
 									return
 								}
-								fmt.Println("DEBUG: awaiting option content...")
 								optionContent, cancelled := g.AwaitTextInput(false)
-								fmt.Printf("DEBUG: option content result: '%s', cancelled=%v\n", optionContent, cancelled)
 								if cancelled {
 									return
 								}
 								if strings.TrimSpace(optionName) == "" {
-									fmt.Println("DEBUG: option name is empty, skipping")
 									return
 								}
-								fmt.Printf("DEBUG: adding option: name='%s', content='%s'\n", optionName, optionContent)
 								err := g.AddOption(selectedNode.UUID, optionName, optionContent)
 								if err != nil {
-									fmt.Printf("DEBUG: failed to add option: %v\n", err)
-								} else {
-									fmt.Println("DEBUG: option added successfully")
+									// Log error through PepeunitClient
+									if g.PepeClient != nil {
+										g.PepeClient.GetLogger().Error(fmt.Sprintf("Failed to add option '%s' to node '%s': %v", optionName, selectedNode.UUID, err))
+									}
 								}
 							}()
 						} else {
 							if stateData != nil && g.SelectedSegments[2]-1 < len(stateData) {
-								fmt.Printf("DEBUG: executing command: %v\n", stateData[g.SelectedSegments[2]-1])
 								settings := g.PepeClient.GetSettings()
 								topicName := settings.PU_DOMAIN + "/" + selectedNode.UUID + "/pepeunit"
-								fmt.Printf("DEBUG: topic: %s\n", topicName)
 								if g.PepeClient != nil && g.PepeClient.GetMQTTClient() != nil {
 									payload := stateData[g.SelectedSegments[2]-1][1]
-									fmt.Printf("DEBUG: sending MQTT payload: %s\n", payload)
 									// Логирование отправки команды по MQTT
 									commandName := stateData[g.SelectedSegments[2]-1][0]
 									g.PepeClient.GetLogger().Info(fmt.Sprintf("Send command '%s' to MQTT on topic '%s'", commandName, topicName))
 									g.sendMQTT(topicName, payload)
-								} else {
-									fmt.Println("DEBUG: MQTT client not available")
 								}
-							} else {
-								fmt.Printf("DEBUG: invalid stateData or segment selection\n")
 							}
 						}
-					} else {
-						fmt.Printf("DEBUG: invalid selectedNodeIdx: %d >= %d\n", selectedNodeIdx, len(selectedUnit.UnitNodes))
 					}
-				} else {
-					fmt.Printf("DEBUG: invalid unitIdx: %d >= %d\n", unitIdx, len(g.Units.Units))
 				}
 			}
 		})
