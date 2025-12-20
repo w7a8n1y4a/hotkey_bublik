@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"picker/internal/hotkeys"
@@ -35,10 +36,11 @@ func registerOptionHotkeys(client *pepeunit.PepeunitClient) {
 	settings := client.GetSettings()
 
 	type hotkeyBinding struct {
-		topic   string
-		payload string
-		mods    []hotkey.Modifier
-		key     hotkey.Key
+		topic       string
+		payload     string
+		commandName string
+		mods        []hotkey.Modifier
+		key         hotkey.Key
 	}
 
 	bindings := make(map[string]hotkeyBinding)
@@ -68,10 +70,11 @@ func registerOptionHotkeys(client *pepeunit.PepeunitClient) {
 
 			topicName := settings.PU_DOMAIN + "/" + nodeUUID + "/pepeunit"
 			bindings[display] = hotkeyBinding{
-				topic:   topicName,
-				payload: pair[1],
-				mods:    mods,
-				key:     key,
+				topic:       topicName,
+				payload:     pair[1],
+				commandName: pair[0],
+				mods:        mods,
+				key:         key,
 			}
 		}
 	}
@@ -92,6 +95,8 @@ func registerOptionHotkeys(client *pepeunit.PepeunitClient) {
 				select {
 				case <-hk.Keydown():
 					if client != nil && client.GetMQTTClient() != nil {
+						// Логирование отправки команды через hotkey
+						client.GetLogger().Info(fmt.Sprintf("Send command '%s' to MQTT on topic '%s'", bind.commandName, bind.topic))
 						client.GetMQTTClient().Publish(bind.topic, bind.payload)
 					}
 				case <-hk.Keyup():

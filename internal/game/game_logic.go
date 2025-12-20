@@ -147,6 +147,11 @@ func (g *Game) Update() error {
 								fmt.Println("DEBUG: clearing hotkey")
 								if err := g.SetOptionHotkey(selectedNode.UUID, optionName, ""); err != nil {
 									fmt.Println("Error clearing hotkey:", err)
+								} else {
+									// Логирование очистки hotkey
+									if g.PepeClient != nil {
+										g.PepeClient.GetLogger().Info(fmt.Sprintf("Delete hotkey for command '%s'", optionName))
+									}
 								}
 							} else {
 								fmt.Println("DEBUG: awaiting hotkey input")
@@ -160,6 +165,10 @@ func (g *Game) Update() error {
 										fmt.Println("Error setting hotkey:", err)
 									} else {
 										fmt.Printf("DEBUG: hotkey set successfully: %s -> %s\n", optionName, hotkey)
+										// Логирование установки hotkey
+										if g.PepeClient != nil {
+											g.PepeClient.GetLogger().Info(fmt.Sprintf("Set hotkey '%s' for command '%s'", hotkey, optionName))
+										}
 									}
 								}()
 							}
@@ -199,6 +208,10 @@ func (g *Game) Update() error {
 		g.handleKey(ebiten.Key(ebiten.MouseButtonLeft), func() {
 			if g.ActiveLayer == 0 {
 				if g.SelectedSegments[0] == 0 {
+					// Логирование обновления списка юнитов
+					if g.PepeClient != nil {
+						g.PepeClient.GetLogger().Info("Run update units list")
+					}
 					g.refreshUnits()
 					return
 				}
@@ -258,6 +271,9 @@ func (g *Game) Update() error {
 								if g.PepeClient != nil && g.PepeClient.GetMQTTClient() != nil {
 									payload := stateData[g.SelectedSegments[2]-1][1]
 									fmt.Printf("DEBUG: sending MQTT payload: %s\n", payload)
+									// Логирование отправки команды по MQTT
+									commandName := stateData[g.SelectedSegments[2]-1][0]
+									g.PepeClient.GetLogger().Info(fmt.Sprintf("Send command '%s' to MQTT on topic '%s'", commandName, topicName))
 									g.sendMQTT(topicName, payload)
 								} else {
 									fmt.Println("DEBUG: MQTT client not available")
@@ -462,4 +478,3 @@ func (g *Game) awaitInput(mode InputMode, setupFunc func(chan textInputResult)) 
 	res := <-resultChan
 	return res.text, res.cancelled
 }
-
