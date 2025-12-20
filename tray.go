@@ -2,15 +2,12 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/getlantern/systray"
 	pepeunit "github.com/w7a8n1y4a/pepeunit_go_client"
 )
 
 func onReady(icon []byte, client *pepeunit.PepeunitClient) {
-	log.Println("systray onReady called")
-
 	systray.SetIcon(icon)
 	systray.SetTitle("Tray Example")
 	systray.SetTooltip("Minimal Tray App")

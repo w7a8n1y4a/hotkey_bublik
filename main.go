@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	_ "embed"
-	"log"
+	"os"
 	"time"
 
 	"github.com/getlantern/systray"
@@ -26,20 +26,16 @@ func main() {
 		SkipVersionCheck: true,
 	})
 	if err != nil {
-		log.Fatalf("init pepeunit client failed: %v", err)
+		os.Exit(1)
 	}
-
-	log.Println("App starting...")
 
 	ctx := context.Background()
 	if pepeClient.GetMQTTClient() != nil {
 		if err := pepeClient.GetMQTTClient().Connect(ctx); err != nil {
-			log.Fatalf("mqtt connect failed: %v", err)
+			os.Exit(1)
 		}
 		pepeClient.SetMQTTInputHandler(nil)
-		if err := pepeClient.SubscribeAllSchemaTopics(ctx); err != nil {
-			log.Printf("subscribe topics failed: %v", err)
-		}
+		pepeClient.SubscribeAllSchemaTopics(ctx)
 	}
 	go pepeClient.RunMainCycle(ctx, nil)
 	mainthread.Init(func() {
@@ -48,7 +44,7 @@ func main() {
 	})
 	icon, err := loadIcon(iconData)
 	if err != nil {
-		log.Fatal("Ошибка загрузки иконки:", err)
+		os.Exit(1)
 	}
 
 	systray.Run(func() {

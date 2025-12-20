@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"strings"
 
 	"picker/internal/hotkeys"
@@ -16,8 +15,6 @@ func registerOptionHotkeys(client *pepeunit.PepeunitClient) {
 	if client == nil {
 		return
 	}
-
-	log.Println("Trying to register option hotkeys from state...")
 
 	ctx := context.Background()
 	stateData := make(map[string][][]string)
@@ -32,7 +29,6 @@ func registerOptionHotkeys(client *pepeunit.PepeunitClient) {
 	}
 
 	if len(stateData) == 0 {
-		log.Println("No state data found for option hotkeys")
 		return
 	}
 
@@ -59,7 +55,6 @@ func registerOptionHotkeys(client *pepeunit.PepeunitClient) {
 
 			mods, key, display, err := hotkeys.ParseHotkeySpec(rawHotkey)
 			if err != nil {
-				log.Printf("hotkey: invalid hotkey spec %q: %v; skipping", rawHotkey, err)
 				continue
 			}
 
@@ -82,7 +77,6 @@ func registerOptionHotkeys(client *pepeunit.PepeunitClient) {
 	}
 
 	if len(bindings) == 0 {
-		log.Println("No option hotkeys found in state")
 		return
 	}
 
@@ -90,24 +84,17 @@ func registerOptionHotkeys(client *pepeunit.PepeunitClient) {
 		hk := hotkey.New(bind.mods, bind.key)
 
 		if err := hk.Register(); err != nil {
-			log.Printf("hotkey: failed to register option hotkey %s: %v", display, err)
 			continue
 		}
-
-		log.Printf("Option hotkey %s is registered\n", display)
 
 		go func(hk *hotkey.Hotkey, bind hotkeyBinding, display string) {
 			for {
 				select {
 				case <-hk.Keydown():
-					log.Printf("Option hotkey %s is down, publishing to %s\n", display, bind.topic)
 					if client != nil && client.GetMQTTClient() != nil {
-						if err := client.GetMQTTClient().Publish(bind.topic, bind.payload); err != nil {
-							log.Printf("failed to publish MQTT message for hotkey %s: %v", display, err)
-						}
+						client.GetMQTTClient().Publish(bind.topic, bind.payload)
 					}
 				case <-hk.Keyup():
-					log.Printf("Option hotkey %s is up\n", display)
 				}
 			}
 		}(hk, bind, display)

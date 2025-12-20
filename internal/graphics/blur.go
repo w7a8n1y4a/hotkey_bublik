@@ -3,7 +3,6 @@ package graphics
 import (
 	"image"
 	"image/draw"
-	"log"
 
 	"github.com/disintegration/imaging"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -14,7 +13,7 @@ func BlurScreenshot() *ebiten.Image {
 	bounds := screenshot.GetDisplayBounds(0)
 	img, err := screenshot.CaptureRect(bounds)
 	if err != nil {
-		log.Fatalf("Ошибка захвата экрана: %v", err)
+		panic("Ошибка захвата экрана: " + err.Error())
 	}
 
 	blurredImg := imaging.Blur(img, 10.0)

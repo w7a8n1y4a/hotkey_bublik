@@ -2,7 +2,6 @@ package game
 
 import (
 	_ "embed"
-	"log"
 	"sync"
 
 	"golang.org/x/image/font"
@@ -29,7 +28,7 @@ func LoadFont(size float64) font.Face {
 	if baseFont == nil {
 		tt, err := opentype.Parse(fontData)
 		if err != nil {
-			log.Fatalf("failed to parse font: %v", err)
+			panic("failed to parse font: " + err.Error())
 		}
 		baseFont = tt
 	}
@@ -40,7 +39,7 @@ func LoadFont(size float64) font.Face {
 		Hinting: font.HintingFull,
 	})
 	if err != nil {
-		log.Fatalf("failed to create font face: %v", err)
+		panic("failed to create font face: " + err.Error())
 	}
 
 	fontCache[size] = face
