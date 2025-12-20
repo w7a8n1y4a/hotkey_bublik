@@ -141,7 +141,13 @@ func (g *Game) SetOptionHotkey(unitNodeUUID, optionName, hotkey string) error {
 				if len(pair) >= 3 {
 					g.StateData[unitNodeUUID][i][2] = ""
 				}
-				return g.saveStateRemote()
+				if err := g.saveStateRemote(); err != nil {
+					return err
+				}
+				if g.OnHotkeysChanged != nil {
+					g.OnHotkeysChanged()
+				}
+				return nil
 			}
 		}
 		return fmt.Errorf("option %s not found for unit node %s", optionName, unitNodeUUID)
@@ -174,7 +180,13 @@ func (g *Game) SetOptionHotkey(unitNodeUUID, optionName, hotkey string) error {
 			default:
 				g.StateData[unitNodeUUID][i][2] = hotkey
 			}
-			return g.saveStateRemote()
+			if err := g.saveStateRemote(); err != nil {
+				return err
+			}
+			if g.OnHotkeysChanged != nil {
+				g.OnHotkeysChanged()
+			}
+			return nil
 		}
 	}
 

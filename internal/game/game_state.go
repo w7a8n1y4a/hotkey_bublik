@@ -46,6 +46,7 @@ var refreshSegmentColor = color.RGBA{0x60, 0x7D, 0x8B, 0xFF} // #607D8B
 type Game struct {
 	PepeClient                    *pepeunit.PepeunitClient
 	Units                         UnitsByNodesResponse
+	OnHotkeysChanged              func()
 	StateData                     map[string][][]string
 	KeyDownMap                    map[ebiten.Key]bool
 	CursorTick                    int

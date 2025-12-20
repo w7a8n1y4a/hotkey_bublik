@@ -108,12 +108,6 @@ github.com/tklauser/go-sysconf v0.3.12 h1:0QaGUFOdQaIVdPgfITYzaTegZvdCjmYO52cSFA
 github.com/tklauser/go-sysconf v0.3.12/go.mod h1:Ho14jnntGE1fpdOqQEEaiKRpvIavV0hSfmBq8nJbHYI=
 github.com/tklauser/numcpus v0.6.1 h1:ng9scYS7az0Bk4OZLvrNXNSAO2Pxr1XXRAPyjhIx+Fk=
 github.com/tklauser/numcpus v0.6.1/go.mod h1:1XfjsgE2zo8GVw7POkMbHENHzVg3GzmoZ9fESEdAacY=
-github.com/w7a8n1y4a/pepeunit_go_client v0.10.0 h1:bxAeJoCQ4iqwa9eAcutw0+VKInE6+VK0MvO4cLD6DLY=
-github.com/w7a8n1y4a/pepeunit_go_client v0.10.0/go.mod h1:YgQBWMGZEJIPMTk+GVhvnlMdqha5mUHdFTh6MuQhtA8=
-github.com/w7a8n1y4a/pepeunit_go_client v0.10.1 h1:Ek4WuqBNbn6yPfMHouAemP2p6GlEiXpVZsSZlsvkSp4=
-github.com/w7a8n1y4a/pepeunit_go_client v0.10.1/go.mod h1:YgQBWMGZEJIPMTk+GVhvnlMdqha5mUHdFTh6MuQhtA8=
-github.com/w7a8n1y4a/pepeunit_go_client v0.10.2-0.20251206122257-e749d40d0cf0 h1:bbh/u7nCFlHbkmGgqqUzVxoZ9/Y/436nzyeJqJfxY2o=
-github.com/w7a8n1y4a/pepeunit_go_client v0.10.2-0.20251206122257-e749d40d0cf0/go.mod h1:YgQBWMGZEJIPMTk+GVhvnlMdqha5mUHdFTh6MuQhtA8=
 github.com/w7a8n1y4a/pepeunit_go_client v1.0.0 h1:IcboXGwvZ+QWguPRo2qYMDrbo2rKYFpKYedBncyDMq0=
 github.com/w7a8n1y4a/pepeunit_go_client v1.0.0/go.mod h1:YgQBWMGZEJIPMTk+GVhvnlMdqha5mUHdFTh6MuQhtA8=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=

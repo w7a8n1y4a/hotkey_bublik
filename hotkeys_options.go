@@ -12,6 +12,15 @@ import (
 	"golang.design/x/hotkey"
 )
 
+var registeredOptionHotkeys []*hotkey.Hotkey
+
+func unregisterAllOptionHotkeys() {
+	for _, hk := range registeredOptionHotkeys {
+		hk.Unregister()
+	}
+	registeredOptionHotkeys = nil
+}
+
 func registerOptionHotkeys(client *pepeunit.PepeunitClient) {
 	if client == nil {
 		return
@@ -90,12 +99,13 @@ func registerOptionHotkeys(client *pepeunit.PepeunitClient) {
 			continue
 		}
 
+		registeredOptionHotkeys = append(registeredOptionHotkeys, hk)
+
 		go func(hk *hotkey.Hotkey, bind hotkeyBinding, display string) {
 			for {
 				select {
 				case <-hk.Keydown():
 					if client != nil && client.GetMQTTClient() != nil {
-						// Логирование отправки команды через hotkey
 						client.GetLogger().Info(fmt.Sprintf("Send command '%s' to MQTT on topic '%s'", bind.commandName, bind.topic))
 						client.GetMQTTClient().Publish(bind.topic, bind.payload)
 					}

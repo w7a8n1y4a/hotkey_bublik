@@ -44,10 +44,7 @@ func prepareGame(client *pepeunit.PepeunitClient) (*game.Game, error) {
 	stateData := make(map[string][][]string)
 	ctx := context.Background()
 	if stateStr, err := client.GetStateStorage(ctx); err == nil && stateStr != "" && stateStr != "\"\"" {
-		// Попробуем распарсить как прямой JSON объект
 		if err := json.Unmarshal([]byte(stateStr), &stateData); err != nil {
-
-			// Попробуем распарсить как JSON-строку внутри JSON-строки
 			var wrappedStr string
 			if err2 := json.Unmarshal([]byte(stateStr), &wrappedStr); err2 == nil && wrappedStr != "" {
 				if err3 := json.Unmarshal([]byte(wrappedStr), &stateData); err3 != nil {
@@ -62,6 +59,12 @@ func prepareGame(client *pepeunit.PepeunitClient) (*game.Game, error) {
 	gameInstance, err := game.NewGame(client, data, stateData)
 	if err != nil {
 		return nil, err
+	}
+
+	gameInstance.OnHotkeysChanged = func() {
+		go func() {
+			registerOptionHotkeys(client)
+		}()
 	}
 
 	return gameInstance, nil

@@ -8,6 +8,8 @@ require (
 	github.com/getlantern/systray v1.2.2
 	github.com/hajimehoshi/ebiten/v2 v2.8.5
 	github.com/kbinani/screenshot v0.0.0-20240820160931-a8a2c5d0e191
+	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c
+	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/w7a8n1y4a/pepeunit_go_client v1.0.0
 	golang.design/x/hotkey v0.4.1
 	golang.org/x/image v0.23.0
@@ -38,8 +40,6 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/shirou/gopsutil/v3 v3.23.12 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
-	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c // indirect
-	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
