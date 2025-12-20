@@ -8,14 +8,10 @@ import (
 	"golang.design/x/hotkey"
 )
 
-// CaptureHotkeyFromEbiten захватывает текущую комбинацию клавиш из ebiten
-// и возвращает её в виде строки формата "CTRL+SHIFT+A".
-// Возвращает пустую строку, если не нажата ни одна клавиша или нет модификаторов.
 func CaptureHotkeyFromEbiten() string {
 	var mods []hotkey.Modifier
 	var key string
 
-	// Проверяем модификаторы
 	if ebiten.IsKeyPressed(ebiten.KeyControl) {
 		mods = append(mods, hotkey.ModCtrl)
 	}
@@ -29,35 +25,28 @@ func CaptureHotkeyFromEbiten() string {
 		mods = append(mods, hotkey.Mod4)
 	}
 
-	// Проверяем основную клавишу
 	key = captureKeyFromEbiten()
 
-	// Если нет клавиши или нет модификаторов, возвращаем пустую строку
 	if key == "" || len(mods) == 0 {
 		return ""
 	}
 
-	// Форматируем результат
 	return FormatHotkey(mods, key)
 }
 
-// captureKeyFromEbiten определяет какая основная клавиша нажата
 func captureKeyFromEbiten() string {
-	// Проверяем буквы A-Z
 	for k := ebiten.KeyA; k <= ebiten.KeyZ; k++ {
 		if ebiten.IsKeyPressed(k) {
 			return string(rune('A' + (k - ebiten.KeyA)))
 		}
 	}
 
-	// Проверяем цифры 0-9
 	for k := ebiten.Key0; k <= ebiten.Key9; k++ {
 		if ebiten.IsKeyPressed(k) {
 			return string(rune('0' + (k - ebiten.Key0)))
 		}
 	}
 
-	// Проверяем функциональные клавиши
 	if ebiten.IsKeyPressed(ebiten.KeyF1) {
 		return "F1"
 	}
@@ -95,7 +84,6 @@ func captureKeyFromEbiten() string {
 		return "F12"
 	}
 
-	// Проверяем специальные клавиши
 	if ebiten.IsKeyPressed(ebiten.KeySpace) {
 		return "SPACE"
 	}
@@ -127,24 +115,19 @@ func captureKeyFromEbiten() string {
 	return ""
 }
 
-// FormatHotkeyFromString форматирует строку хоткея для отображения.
-// Если строка пустая, возвращает "No hotkey".
 func FormatHotkeyFromString(hotkeyStr string) string {
 	if strings.TrimSpace(hotkeyStr) == "" {
 		return "Не установлены"
 	}
 
-	// Пытаемся распарсить строку для нормализации
 	_, _, display, err := ParseHotkeySpec(hotkeyStr)
 	if err != nil {
-		// Если не удалось распарсить, возвращаем как есть (для обратной совместимости)
 		return strings.ToUpper(hotkeyStr)
 	}
 
 	return display
 }
 
-// ValidateHotkey проверяет валидность строки хоткея
 func ValidateHotkey(hotkeyStr string) error {
 	if strings.TrimSpace(hotkeyStr) == "" {
 		return fmt.Errorf("hotkey cannot be empty")

@@ -14,7 +14,6 @@ import (
 //go:embed assets/loader.svg
 var spinnerSVG []byte
 
-// loadSpinnerImage рендерит SVG-спинер в квадратное ebiten.Image заданного размера.
 func loadSpinnerImage(size int) (*ebiten.Image, error) {
 	if size <= 0 {
 		return nil, nil
@@ -32,7 +31,6 @@ func loadSpinnerImage(size int) (*ebiten.Image, error) {
 	scanner := rasterx.NewScannerGV(size, size, img, img.Bounds())
 	raster := rasterx.NewDasher(size, size, scanner)
 
-	// Scale = 1.0 — рисуем в заданном размере без дополнительного масштабирования.
 	icon.Draw(raster, 1.0)
 
 	return ebiten.NewImageFromImage(img), nil

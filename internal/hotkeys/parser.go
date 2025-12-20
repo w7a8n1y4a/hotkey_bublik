@@ -7,8 +7,6 @@ import (
 	"golang.design/x/hotkey"
 )
 
-// ParseHotkeySpec парсит строку вида "CTRL+SHIFT+A" в модификаторы и клавишу.
-// Возвращает модификаторы, клавишу, отформатированную строку для отображения и ошибку.
 func ParseHotkeySpec(spec string) ([]hotkey.Modifier, hotkey.Key, string, error) {
 	raw := strings.TrimSpace(spec)
 	if raw == "" {
@@ -39,13 +37,10 @@ func ParseHotkeySpec(spec string) ([]hotkey.Modifier, hotkey.Key, string, error)
 		case "SHIFT":
 			addMod(hotkey.ModShift)
 		case "ALT", "OPTION":
-			// Linux/X11: Mod1 typically maps to Alt.
 			addMod(hotkey.Mod1)
 		case "CMD", "COMMAND", "META", "SUPER", "WIN", "WINDOWS":
-			// Linux/X11: Mod4 typically maps to Super/Win.
 			addMod(hotkey.Mod4)
 		default:
-			// считаем, что это клавиша
 			if keyTok != "" {
 				return nil, 0, "", fmt.Errorf("multiple key tokens: %q and %q", keyTok, t)
 			}
@@ -62,13 +57,11 @@ func ParseHotkeySpec(spec string) ([]hotkey.Modifier, hotkey.Key, string, error)
 		return nil, 0, "", fmt.Errorf("unsupported key %q", keyTok)
 	}
 
-	// Нормализованное отображение
 	display := FormatHotkey(mods, keyTok)
 
 	return mods, key, display, nil
 }
 
-// FormatHotkey форматирует модификаторы и клавишу в строку для отображения.
 func FormatHotkey(mods []hotkey.Modifier, key string) string {
 	var dispParts []string
 	has := func(m hotkey.Modifier) bool {
@@ -96,7 +89,6 @@ func FormatHotkey(mods []hotkey.Modifier, key string) string {
 	return strings.Join(dispParts, "+")
 }
 
-// keyMap содержит маппинг строковых названий клавиш в hotkey.Key
 var keyMap = map[string]hotkey.Key{
 	"A": hotkey.KeyA, "B": hotkey.KeyB, "C": hotkey.KeyC, "D": hotkey.KeyD, "E": hotkey.KeyE,
 	"F": hotkey.KeyF, "G": hotkey.KeyG, "H": hotkey.KeyH, "I": hotkey.KeyI, "J": hotkey.KeyJ,

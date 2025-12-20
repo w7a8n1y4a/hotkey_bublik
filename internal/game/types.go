@@ -1,6 +1,5 @@
 package game
 
-// Типы данных для REST‑ответов Pepeunit, используемые внутри игры.
 
 type UnitNode struct {
 	UUID              string `json:"uuid"`
