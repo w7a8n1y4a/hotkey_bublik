@@ -1,7 +1,5 @@
-# Используем официальный образ Go
 FROM golang:1.23 as builder
 
-# Устанавливаем зависимости для X11 и системного трея
 RUN apt-get update && apt-get install -y \
     libx11-dev \
     libxrandr-dev \
@@ -15,19 +13,14 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Указываем рабочую директорию внутри контейнера
 WORKDIR /app
 
-# Копируем исходный код в контейнер
 COPY . .
 
-# Указываем имя выходного бинарного файла
 ENV APP_NAME=picker
 
-# Список целевых платформ
 ENV TARGETS="linux/amd64"
 
-# Сборка для каждой платформы
 RUN mkdir -p /output && \
     for target in $TARGETS; do \
         GOOS=$(echo $target | cut -d'/' -f1); \
