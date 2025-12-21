@@ -1,11 +1,36 @@
 package graphics
 
 import (
+	"image"
 	"image/color"
+	"image/draw"
 	"math"
 
+	"github.com/disintegration/imaging"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/kbinani/screenshot"
 )
+
+func BlurScreenshot() *ebiten.Image {
+	bounds := screenshot.GetDisplayBounds(0)
+	img, err := screenshot.CaptureRect(bounds)
+	if err != nil {
+		panic("Ошибка захвата экрана: " + err.Error())
+	}
+
+	blurredImg := imaging.Blur(img, 10.0)
+
+	var src image.Image = blurredImg
+
+	nrgba, ok := src.(*image.NRGBA)
+	if !ok {
+		tmp := image.NewNRGBA(src.Bounds())
+		draw.Draw(tmp, tmp.Bounds(), src, src.Bounds().Min, draw.Src)
+		nrgba = tmp
+	}
+
+	return ebiten.NewImageFromImage(nrgba)
+}
 
 var whiteTexture *ebiten.Image
 
@@ -62,7 +87,7 @@ func DrawSegment(screen *ebiten.Image, x, y, rInner, rOuter int, angleStart, ang
 		return
 	}
 
-	borderColor := color.RGBA{117, 117, 117, 255} // #757575
+	borderColor := color.RGBA{117, 117, 117, 255}
 
 	innerStart := rInner
 	innerEnd := rInner + borderThickness
@@ -85,7 +110,7 @@ func DrawSegment(screen *ebiten.Image, x, y, rInner, rOuter int, angleStart, ang
 		drawRingSegment(screen, x, y, outerStart, outerEnd, angleStart, angleEnd, borderColor)
 	}
 
-	const radialBorderAngle = 0.006 // ~0.34°
+	const radialBorderAngle = 0.006
 	segmentAngle := angleEnd - angleStart
 	if segmentAngle <= 0 {
 		return
@@ -114,3 +139,5 @@ func DrawSegment(screen *ebiten.Image, x, y, rInner, rOuter int, angleStart, ang
 		drawRingSegment(screen, x, y, rInner, rOuter, rightStart, rightEnd, borderColor)
 	}
 }
+
+

@@ -15,29 +15,13 @@ import (
 )
 
 func prepareGame(client *pepeunit.PepeunitClient) (*game.Game, error) {
-	data, err := game.FetchUnits(client)
-	if err != nil {
-		// Ошибка при получении данных (используем пустой список юнитов)
-	}
+	data, _ := game.FetchUnits(client)
 
 	config.UpdateConfig(func(cfg *config.Config) {
 		cfg.BlurredBackground = graphics.BlurScreenshot()
 	})
 
-	stateData := make(map[string][][]string)
-	ctx := context.Background()
-	if stateStr, err := client.GetStateStorage(ctx); err == nil && stateStr != "" && stateStr != "\"\"" {
-		if err := json.Unmarshal([]byte(stateStr), &stateData); err != nil {
-			var wrappedStr string
-			if err2 := json.Unmarshal([]byte(stateStr), &wrappedStr); err2 == nil && wrappedStr != "" {
-				if err3 := json.Unmarshal([]byte(wrappedStr), &stateData); err3 != nil {
-				}
-			}
-		}
-	}
-
-	for range stateData {
-	}
+	stateData := loadStateData(client)
 
 	gameInstance, err := game.NewGame(client, data, stateData)
 	if err != nil {
@@ -62,9 +46,7 @@ func StartGame(client *pepeunit.PepeunitClient) {
 	ebiten.SetFullscreen(true)
 	ebiten.SetWindowTitle("Picker")
 
-	if err := ebiten.RunGame(gameInstance); err != nil {
-		// Ошибка запуска игры
-	}
+	_ = ebiten.RunGame(gameInstance)
 
 	restartApplication()
 }
@@ -79,4 +61,28 @@ func restartApplication() {
 		os.Exit(1)
 	}
 	os.Exit(0)
+}
+
+func loadStateData(client *pepeunit.PepeunitClient) map[string][][]string {
+	stateData := make(map[string][][]string)
+	if client == nil {
+		return stateData
+	}
+
+	ctx := context.Background()
+	stateStr, err := client.GetStateStorage(ctx)
+	if err != nil || stateStr == "" || stateStr == "\"\"" {
+		return stateData
+	}
+
+	if err := json.Unmarshal([]byte(stateStr), &stateData); err == nil {
+		return stateData
+	}
+
+	var wrapped string
+	if err := json.Unmarshal([]byte(stateStr), &wrapped); err != nil || wrapped == "" {
+		return stateData
+	}
+	_ = json.Unmarshal([]byte(wrapped), &stateData)
+	return stateData
 }

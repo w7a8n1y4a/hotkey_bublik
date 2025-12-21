@@ -36,3 +36,5 @@ func (g *Game) sendMQTT(topicName, payload string) {
 		ch <- mqttResult{err: err}
 	}(g.mqttResultCh)
 }
+
+

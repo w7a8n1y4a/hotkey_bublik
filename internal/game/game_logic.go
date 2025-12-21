@@ -31,9 +31,8 @@ func (g *Game) Update() error {
 		case res := <-g.refreshResultCh:
 			g.refreshInProgress = false
 			if res.err != nil {
-				// Log error through PepeunitClient
 				if g.PepeClient != nil {
-					g.PepeClient.GetLogger().Error(fmt.Sprintf("Failed to refresh units: %v", res.err))
+					g.PepeClient.GetLogger().Error("Failed to refresh units: " + res.err.Error())
 				}
 			} else {
 				g.Units = res.data
@@ -47,9 +46,8 @@ func (g *Game) Update() error {
 		case res := <-g.mqttResultCh:
 			g.mqttInProgress = false
 			if res.err != nil {
-				// Log error through PepeunitClient
 				if g.PepeClient != nil {
-					g.PepeClient.GetLogger().Error(fmt.Sprintf("Failed to publish MQTT message: %v", res.err))
+					g.PepeClient.GetLogger().Error("Failed to publish MQTT message: " + res.err.Error())
 				}
 				g.MQTTStatus = "MQTT: error: " + res.err.Error()
 			} else {
@@ -146,14 +144,12 @@ func (g *Game) Update() error {
 
 							if ebiten.IsKeyPressed(ebiten.KeyControl) {
 								if err := g.SetOptionHotkey(selectedNode.UUID, optionName, ""); err != nil {
-									// Log error through PepeunitClient
 									if g.PepeClient != nil {
-										g.PepeClient.GetLogger().Error(fmt.Sprintf("Error clearing hotkey for command '%s' node '%s': %v", optionName, selectedNode.UUID, err))
+										g.PepeClient.GetLogger().Error("Error clearing hotkey for command '" + optionName + "' node '" + selectedNode.UUID + "': " + err.Error())
 									}
 								} else {
-									// Логирование очистки hotkey
 									if g.PepeClient != nil {
-										g.PepeClient.GetLogger().Info(fmt.Sprintf("Delete hotkey for command '%s'", optionName))
+										g.PepeClient.GetLogger().Info("Delete hotkey for command '" + optionName + "'")
 									}
 								}
 							} else {
@@ -163,14 +159,12 @@ func (g *Game) Update() error {
 										return
 									}
 									if err := g.SetOptionHotkey(selectedNode.UUID, optionName, hotkey); err != nil {
-										// Log error through PepeunitClient
 										if g.PepeClient != nil {
-											g.PepeClient.GetLogger().Error(fmt.Sprintf("Error setting hotkey for command '%s' node '%s': %v", optionName, selectedNode.UUID, err))
+											g.PepeClient.GetLogger().Error("Error setting hotkey for command '" + optionName + "' node '" + selectedNode.UUID + "': " + err.Error())
 									}
 									} else {
-										// Логирование установки hotkey
 										if g.PepeClient != nil {
-											g.PepeClient.GetLogger().Info(fmt.Sprintf("Set hotkey '%s' for command '%s'", hotkey, optionName))
+											g.PepeClient.GetLogger().Info("Set hotkey '" + hotkey + "' for command '" + optionName + "'")
 										}
 									}
 								}()
@@ -194,9 +188,8 @@ func (g *Game) Update() error {
 							optionName := stateData[g.SelectedSegments[2]-1][0]
 							err := g.RemoveOption(selectedNode.UUID, optionName)
 							if err != nil {
-								// Log error through PepeunitClient
 								if g.PepeClient != nil {
-									g.PepeClient.GetLogger().Error(fmt.Sprintf("Error removing option '%s' from node '%s': %v", optionName, selectedNode.UUID, err))
+									g.PepeClient.GetLogger().Error("Error removing option '" + optionName + "' from node '" + selectedNode.UUID + "': " + err.Error())
 								}
 							}
 						}
@@ -208,7 +201,6 @@ func (g *Game) Update() error {
 		g.handleKey(ebiten.Key(ebiten.MouseButtonLeft), func() {
 			if g.ActiveLayer == 0 {
 				if g.SelectedSegments[0] == 0 {
-					// Логирование обновления списка юнитов
 					if g.PepeClient != nil {
 						g.PepeClient.GetLogger().Info("Run update units list")
 					}
@@ -246,9 +238,8 @@ func (g *Game) Update() error {
 								}
 								err := g.AddOption(selectedNode.UUID, optionName, optionContent)
 								if err != nil {
-									// Log error through PepeunitClient
 									if g.PepeClient != nil {
-										g.PepeClient.GetLogger().Error(fmt.Sprintf("Failed to add option '%s' to node '%s': %v", optionName, selectedNode.UUID, err))
+										g.PepeClient.GetLogger().Error("Failed to add option '" + optionName + "' to node '" + selectedNode.UUID + "': " + err.Error())
 									}
 								}
 							}()
@@ -258,9 +249,8 @@ func (g *Game) Update() error {
 								topicName := settings.PU_DOMAIN + "/" + selectedNode.UUID + "/pepeunit"
 								if g.PepeClient != nil && g.PepeClient.GetMQTTClient() != nil {
 									payload := stateData[g.SelectedSegments[2]-1][1]
-									// Логирование отправки команды по MQTT
 									commandName := stateData[g.SelectedSegments[2]-1][0]
-									g.PepeClient.GetLogger().Info(fmt.Sprintf("Send command '%s' to MQTT on topic '%s'", commandName, topicName))
+									g.PepeClient.GetLogger().Info("Send command '" + commandName + "' to MQTT on topic '" + topicName + "'")
 									g.sendMQTT(topicName, payload)
 								}
 							}
@@ -356,104 +346,4 @@ func (g *Game) Update() error {
 	}
 
 	return nil
-}
-
-func (g *Game) handleKey(key ebiten.Key, action func()) {
-	keyPressed := false
-	if key == ebiten.Key(ebiten.MouseButtonLeft) {
-		keyPressed = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
-	} else if key == ebiten.Key(ebiten.MouseButtonRight) {
-		keyPressed = ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight)
-	} else {
-		keyPressed = ebiten.IsKeyPressed(key)
-	}
-
-	if keyPressed {
-		if !g.KeyDownMap[key] {
-			g.KeyDownMap[key] = true
-			action()
-		}
-	} else {
-		g.KeyDownMap[key] = false
-	}
-}
-
-func (g *Game) handleKeyCombination(key ebiten.Key, modifier ebiten.Key, action func()) {
-	if ebiten.IsKeyPressed(key) && ebiten.IsKeyPressed(modifier) {
-		if !g.KeyDownMap[key] {
-			g.KeyDownMap[key] = true
-			action()
-		}
-	} else {
-		g.KeyDownMap[key] = false
-	}
-}
-
-func (g *Game) StartTextInput(callback func(string)) {
-	g.InputMode = ModeTextInput
-	g.TextInput = ""
-	g.OnTextInputDone = callback
-	g.OnTextInputCancel = nil
-	g.CursorTick = 0
-	g.BackspaceFrames = 0
-}
-
-func (g *Game) AwaitTextInput(isFirstWrite bool) (string, bool) {
-	return g.awaitInput(ModeTextInput, func(resultChan chan textInputResult) {
-		g.TextInput = ""
-		g.IsFirstWrite = isFirstWrite
-		g.CursorTick = 0
-		g.BackspaceFrames = 0
-
-		finish := func(res textInputResult) {
-			g.OnTextInputDone = nil
-			g.OnTextInputCancel = nil
-			g.InputMode = ModeGame
-			resultChan <- res
-			close(resultChan)
-		}
-
-		g.OnTextInputDone = func(input string) { finish(textInputResult{text: input, cancelled: false}) }
-		g.OnTextInputCancel = func() { finish(textInputResult{text: "", cancelled: true}) }
-	})
-}
-
-func (g *Game) StartHotkeyInput(unitNodeUUID, optionName string, callback func(string)) {
-	g.InputMode = ModeHotkeyInput
-	g.HotkeyInputTargetUnitNodeUUID = unitNodeUUID
-	g.HotkeyInputTargetOptionName = optionName
-	g.HotkeyInputCurrent = ""
-	g.OnHotkeyInputDone = callback
-	g.OnHotkeyInputCancel = nil
-	g.CursorTick = 0
-}
-
-func (g *Game) AwaitHotkeyInput(unitNodeUUID, optionName string) (string, bool) {
-	return g.awaitInput(ModeHotkeyInput, func(resultChan chan textInputResult) {
-		g.HotkeyInputTargetUnitNodeUUID = unitNodeUUID
-		g.HotkeyInputTargetOptionName = optionName
-		g.HotkeyInputCurrent = ""
-		g.CursorTick = 0
-
-		finish := func(res textInputResult) {
-			g.OnHotkeyInputDone = nil
-			g.OnHotkeyInputCancel = nil
-			g.InputMode = ModeGame
-			resultChan <- res
-			close(resultChan)
-		}
-
-		g.OnHotkeyInputDone = func(hotkey string) { finish(textInputResult{text: hotkey, cancelled: false}) }
-		g.OnHotkeyInputCancel = func() { finish(textInputResult{text: "", cancelled: true}) }
-	})
-}
-
-func (g *Game) awaitInput(mode InputMode, setupFunc func(chan textInputResult)) (string, bool) {
-	resultChan := make(chan textInputResult, 1)
-
-	g.InputMode = mode
-	setupFunc(resultChan)
-
-	res := <-resultChan
-	return res.text, res.cancelled
 }

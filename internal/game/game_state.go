@@ -12,6 +12,44 @@ import (
 	pepeunit "github.com/w7a8n1y4a/pepeunit_go_client"
 )
 
+type UnitNode struct {
+	UUID              string `json:"uuid"`
+	Type              string `json:"type"`
+	VisibilityLevel   string `json:"visibility_level"`
+	IsRewritableInput bool   `json:"is_rewritable_input"`
+	TopicName         string `json:"topic_name"`
+	CreateDatetime    string `json:"create_datetime"`
+	State             string `json:"state"`
+	UnitUUID          string `json:"unit_uuid"`
+	CreatorUUID       string `json:"creator_uuid"`
+}
+
+type Unit struct {
+	UUID                     string     `json:"uuid"`
+	VisibilityLevel          string     `json:"visibility_level"`
+	Name                     string     `json:"name"`
+	CreateDatetime           string     `json:"create_datetime"`
+	IsAutoUpdateFromRepoUnit bool       `json:"is_auto_update_from_repo_unit"`
+	RepoBranch               string     `json:"repo_branch"`
+	RepoCommit               string     `json:"repo_commit"`
+	UnitStateDict            string     `json:"unit_state_dict"`
+	CurrentCommitVersion     string     `json:"current_commit_version"`
+	LastUpdateDatetime       string     `json:"last_update_datetime"`
+	CreatorUUID              string     `json:"creator_uuid"`
+	RepoUUID                 string     `json:"repo_uuid"`
+	UnitNodes                []UnitNode `json:"unit_nodes"`
+}
+
+type UnitsByNodesResponse struct {
+	Count int    `json:"count"`
+	Units []Unit `json:"units"`
+}
+
+type UnitNodesResponse struct {
+	Count     int        `json:"count"`
+	UnitNodes []UnitNode `json:"unit_nodes"`
+}
+
 type InputMode int
 
 const (
@@ -27,21 +65,21 @@ type LogEntry struct {
 }
 
 var unitColors = []color.RGBA{
-	{0xF4, 0x43, 0x36, 0xFF}, // 0 → красный      (#F44336)
-	{0xE9, 0x1E, 0x63, 0xFF}, // 1 → розовый      (#E91E63)
-	{0x9C, 0x27, 0xB0, 0xFF}, // 2 → фиолетовый   (#9C27B0)
-	{0x3F, 0x51, 0xB5, 0xFF}, // 3 → индиго       (#3F51B5)
-	{0x21, 0x96, 0xF3, 0xFF}, // 4 → синий        (#2196F3)
-	{0x03, 0xA9, 0xF4, 0xFF}, // 5 → голубой      (#03A9F4)
-	{0x00, 0x96, 0x88, 0xFF}, // 6 → бирюзовый    (#009688)
-	{0x4C, 0xAF, 0x50, 0xFF}, // 7 → зелёный      (#4CAF50)
-	{0xFF, 0x98, 0x00, 0xFF}, // 8 → оранжевый    (#FF9800)
-	{0xFF, 0x57, 0x22, 0xFF}, // 9 → тёплый оранж (#FF5722)
+	{0xF4, 0x43, 0x36, 0xFF},
+	{0xE9, 0x1E, 0x63, 0xFF},
+	{0x9C, 0x27, 0xB0, 0xFF},
+	{0x3F, 0x51, 0xB5, 0xFF},
+	{0x21, 0x96, 0xF3, 0xFF},
+	{0x03, 0xA9, 0xF4, 0xFF},
+	{0x00, 0x96, 0x88, 0xFF},
+	{0x4C, 0xAF, 0x50, 0xFF},
+	{0xFF, 0x98, 0x00, 0xFF},
+	{0xFF, 0x57, 0x22, 0xFF},
 }
 
-var defaultSegmentColor = color.RGBA{0x42, 0x42, 0x42, 0xFF} // #424242
+var defaultSegmentColor = color.RGBA{0x42, 0x42, 0x42, 0xFF}
 
-var refreshSegmentColor = color.RGBA{0x60, 0x7D, 0x8B, 0xFF} // #607D8B
+var refreshSegmentColor = color.RGBA{0x60, 0x7D, 0x8B, 0xFF}
 
 type Game struct {
 	PepeClient                    *pepeunit.PepeunitClient
@@ -133,16 +171,4 @@ func NewGame(client *pepeunit.PepeunitClient, data UnitsByNodesResponse, stateDa
 	}
 
 	return g, nil
-}
-
-func (g *Game) GetState() map[string][][]string {
-	copyState := make(map[string][][]string)
-	for uuid, options := range g.StateData {
-		dup := make([][]string, len(options))
-		for i, pair := range options {
-			dup[i] = append([]string{}, pair...)
-		}
-		copyState[uuid] = dup
-	}
-	return copyState
 }

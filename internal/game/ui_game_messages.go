@@ -6,16 +6,11 @@ import (
 	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/text"
 
 	"picker/internal/config"
 	"picker/internal/hotkeys"
 )
-
-func (g *Game) drawBlurLoadingMessage(screen *ebiten.Image) {
-	ebitenutil.DebugPrint(screen, "Загрузка размытого фона...")
-}
 
 func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items [][]string) {
 	if len(items) == 0 {
@@ -39,7 +34,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 	segmentFontFace := LoadFont(float64(segmentFontSize))
 
 	centerX := int(cfg.ScreenWidth / 2)
-	valueColumnCenterX := int(cfg.ScreenWidth / 5) // вертикальная линия центра левой колонки значения (1/5 экрана)
+	valueColumnCenterX := int(cfg.ScreenWidth / 5)
 	centerUnit := int(cfg.ScreenHeight/2) - int(float64(fontSize)/2)
 	centerUnitNode := int(cfg.ScreenHeight/2) + int(float64(fontSize)*1.5)
 	centerOption := int(cfg.ScreenHeight / 2)
@@ -58,13 +53,13 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 	}
 
 	selectedSegmentText := items[g.SelectedSegments[layerIndex]][0]
-	maxWidth := cfg.RadiusInner * 2 // Увеличиваем ширину для размещения большего количества символов
-	if maxWidth < 50*12 {           // 50 символов примерно по 12 пикселей каждый
+	maxWidth := cfg.RadiusInner * 2
+	if maxWidth < 50*12 {
 		maxWidth = 50 * 12
 	}
 
 	activeLayerOuterRadius := cfg.RadiusInner + layerIndex*60 + cfg.ThickSegment
-	segmentLabelY := cfg.PickerCenterY - activeLayerOuterRadius - 10 // 10 пикселей выше внешнего края активного слоя (значительно ниже)
+	segmentLabelY := cfg.PickerCenterY - activeLayerOuterRadius - 10
 
 	DrawCenteredText(
 		screen,
@@ -89,7 +84,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 				"Unit:",
 				centerX,
 				unitLabelY,
-				400, // Увеличиваем ширину для длинных названий
+				400,
 				4,
 				color.White,
 			)
@@ -101,7 +96,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 				selectedUnit.Name,
 				centerX,
 				unitNameY,
-				400, // Увеличиваем ширину для длинных названий
+				400,
 				4,
 				color.White,
 			)
@@ -122,7 +117,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 					"UnitNode:",
 					centerX,
 					unitNodeLabelY,
-					400, // Увеличиваем ширину для длинных названий
+					400,
 					4,
 					color.White,
 				)
@@ -138,7 +133,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 					nodeName,
 					centerX,
 					unitNodeNameY,
-					400, // Увеличиваем ширину для длинных названий
+					400,
 					4,
 					color.White,
 				)
@@ -268,11 +263,11 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 			logTextX,
 			logTextY,
 			logMaxWidth,
-			2,                              // Меньший межстрочный интервал
-			color.RGBA{200, 200, 200, 255}, // Серый цвет для логов
+			2,
+			color.RGBA{200, 200, 200, 255},
 		)
 
-		unitIdx := g.SelectedSegments[0] - 1 // 0‑й сегмент — дефолтный
+		unitIdx := g.SelectedSegments[0] - 1
 		if unitIdx >= 0 && unitIdx < len(g.Units.Units) && (layerIndex == 1 || layerIndex == 2) {
 			selectedUnit := g.Units.Units[unitIdx]
 			selectedNodeIdx := g.SelectedSegments[1]
@@ -315,7 +310,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 					valueTextX,
 					valueTextY,
 					maxWidth,
-					2, // Меньший межстрочный интервал
+					2,
 					color.White,
 				)
 			}
@@ -417,185 +412,4 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 			}
 		}
 	}
-}
-
-func (g *Game) drawMQTTStatus(screen *ebiten.Image) {
-	if g.MQTTStatus == "" {
-		return
-	}
-
-	cfg := config.GetConfig()
-
-	fontFace := LoadFont(16)
-	x := 20
-	y := 40
-	maxWidth := int(cfg.ScreenWidth / 3)
-
-	DrawLeftAlignedText(
-		screen,
-		fontFace,
-		g.MQTTStatus,
-		x,
-		y,
-		maxWidth,
-		2,
-		color.RGBA{200, 200, 200, 255},
-	)
-}
-
-func (g *Game) drawSpinner(screen *ebiten.Image) {
-	if !g.spinnerActive || g.spinnerImage == nil {
-		return
-	}
-
-	cfg := config.GetConfig()
-
-	w, h := g.spinnerImage.Size()
-
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Translate(-float64(w)/2, -float64(h)/2)
-	op.GeoM.Rotate(g.spinnerAngle)
-	op.GeoM.Translate(float64(cfg.PickerCenterX), float64(cfg.PickerCenterY))
-
-	screen.DrawImage(g.spinnerImage, op)
-}
-
-func (g *Game) drawTextInputMessages(screen *ebiten.Image) {
-	cfg := config.GetConfig()
-
-	fontFace := LoadFont(24)
-	fontBigFace := LoadFont(32)
-	centerX := cfg.ScreenWidth / 2
-	centerY := cfg.ScreenHeight / 2
-
-	targetText := "Введите название команды"
-	if !g.IsFirstWrite {
-		targetText = "Введите тело команды: текст или JSON"
-	}
-
-	DrawCenteredText(
-		screen,
-		fontBigFace,
-		targetText,
-		centerX,
-		centerY/3,
-		300,
-		4,
-		color.White,
-	)
-
-	DrawCenteredText(
-		screen,
-		fontFace,
-		"Введите текст или используйте <CTRL + v>",
-		centerX,
-		centerY/2,
-		300,
-		4,
-		color.White,
-	)
-
-	DrawCenteredText(
-		screen,
-		fontFace,
-		g.getTextInputWithCursor(),
-		centerX,
-		centerY,
-		800,
-		4,
-		color.White,
-	)
-
-	hintText := "ENTER: сохранить | ESC: отменить"
-	DrawCenteredText(
-		screen,
-		fontFace,
-		hintText,
-		centerX,
-		centerY+100,
-		600,
-		4,
-		color.RGBA{200, 200, 200, 255},
-	)
-}
-
-func (g *Game) getTextInputWithCursor() string {
-	const blinkPeriod = 60
-	const halfPeriod = blinkPeriod / 2
-
-	text := g.TextInput
-
-	if blinkPeriod > 0 && (g.CursorTick%blinkPeriod) < halfPeriod {
-		text += "|"
-	}
-
-	return text
-}
-
-func (g *Game) drawHotkeyInputMessages(screen *ebiten.Image) {
-	cfg := config.GetConfig()
-
-	fontFace := LoadFont(24)
-	fontBigFace := LoadFont(32)
-	centerX := cfg.ScreenWidth / 2
-	centerY := cfg.ScreenHeight / 2
-
-	optionName := g.HotkeyInputTargetOptionName
-	if optionName == "" {
-		optionName = "option"
-	}
-
-	targetText := "Горячие клавиши для команды: " + optionName
-
-	DrawCenteredText(
-		screen,
-		fontBigFace,
-		targetText,
-		centerX,
-		centerY/3,
-		600,
-		4,
-		color.White,
-	)
-
-	DrawCenteredText(
-		screen,
-		fontFace,
-		"Нажмите сочетание клавиш",
-		centerX,
-		centerY/2,
-		400,
-		4,
-		color.White,
-	)
-
-	hotkeyDisplay := g.HotkeyInputCurrent
-	if hotkeyDisplay == "" {
-		hotkeyDisplay = "Клавиши ещё не нажаты"
-	} else {
-		hotkeyDisplay = hotkeys.FormatHotkeyFromString(hotkeyDisplay)
-	}
-
-	DrawCenteredText(
-		screen,
-		fontBigFace,
-		hotkeyDisplay,
-		centerX,
-		centerY,
-		600,
-		4,
-		color.RGBA{100, 200, 255, 255}, // Голубой цвет для текущей комбинации
-	)
-
-	hintText := "ENTER: сохранить | ESC: отменить | BACKSPACE/DELETE: Сбросить"
-	DrawCenteredText(
-		screen,
-		fontFace,
-		hintText,
-		centerX,
-		centerY+100,
-		800,
-		4,
-		color.RGBA{200, 200, 200, 255},
-	)
 }

@@ -1,24 +1,40 @@
 package app
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
 	"strings"
 
+	"picker/internal/config"
 	"picker/internal/hotkeys"
 
 	pepeunit "github.com/w7a8n1y4a/pepeunit_go_client"
 	"golang.design/x/hotkey"
 )
 
-var registeredOptionHotkeys []*hotkey.Hotkey
-
-func UnregisterAllOptionHotkeys() {
-	for _, hk := range registeredOptionHotkeys {
-		hk.Unregister()
+func RegisterGlobalHotkey(client *pepeunit.PepeunitClient) {
+	cfg := config.GetConfig()
+	if cfg.LaunchHotkeyMain == nil {
+		return
 	}
-	registeredOptionHotkeys = nil
+
+	mods, key, _, err := hotkeys.ParseHotkeySpec(*cfg.LaunchHotkeyMain)
+	if err != nil {
+		return
+	}
+
+	hk := hotkey.New(mods, key)
+
+	if err := hk.Register(); err != nil {
+		return
+	}
+	go func() {
+		for {
+			select {
+			case <-hk.Keydown():
+				go StartGame(client)
+			case <-hk.Keyup():
+			}
+		}
+	}()
 }
 
 func RegisterOptionHotkeys(client *pepeunit.PepeunitClient) {
@@ -26,17 +42,7 @@ func RegisterOptionHotkeys(client *pepeunit.PepeunitClient) {
 		return
 	}
 
-	ctx := context.Background()
-	stateData := make(map[string][][]string)
-
-	if stateStr, err := client.GetStateStorage(ctx); err == nil && stateStr != "" && stateStr != "\"\"" {
-		if err := json.Unmarshal([]byte(stateStr), &stateData); err != nil {
-			var wrapped string
-			if err2 := json.Unmarshal([]byte(stateStr), &wrapped); err2 == nil && wrapped != "" {
-				_ = json.Unmarshal([]byte(wrapped), &stateData)
-			}
-		}
-	}
+	stateData := loadStateData(client)
 
 	if len(stateData) == 0 {
 		return
@@ -92,26 +98,26 @@ func RegisterOptionHotkeys(client *pepeunit.PepeunitClient) {
 		return
 	}
 
-	for display, bind := range bindings {
+	for _, bind := range bindings {
 		hk := hotkey.New(bind.mods, bind.key)
 
 		if err := hk.Register(); err != nil {
 			continue
 		}
 
-		registeredOptionHotkeys = append(registeredOptionHotkeys, hk)
-
-		go func(hk *hotkey.Hotkey, bind hotkeyBinding, display string) {
+		go func(hk *hotkey.Hotkey, bind hotkeyBinding) {
 			for {
 				select {
 				case <-hk.Keydown():
 					if client != nil && client.GetMQTTClient() != nil {
-						client.GetLogger().Info(fmt.Sprintf("Send command '%s' to MQTT on topic '%s'", bind.commandName, bind.topic))
+						client.GetLogger().Info("Send command '" + bind.commandName + "' to MQTT on topic '" + bind.topic + "'")
 						client.GetMQTTClient().Publish(bind.topic, bind.payload)
 					}
 				case <-hk.Keyup():
 				}
 			}
-		}(hk, bind, display)
+		}(hk, bind)
 	}
 }
+
+
