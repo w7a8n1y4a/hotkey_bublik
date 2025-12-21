@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -14,14 +14,14 @@ import (
 
 var registeredOptionHotkeys []*hotkey.Hotkey
 
-func unregisterAllOptionHotkeys() {
+func UnregisterAllOptionHotkeys() {
 	for _, hk := range registeredOptionHotkeys {
 		hk.Unregister()
 	}
 	registeredOptionHotkeys = nil
 }
 
-func registerOptionHotkeys(client *pepeunit.PepeunitClient) {
+func RegisterOptionHotkeys(client *pepeunit.PepeunitClient) {
 	if client == nil {
 		return
 	}

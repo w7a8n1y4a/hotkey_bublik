@@ -1,11 +1,11 @@
-package main
+package app
 
 import (
 	"github.com/getlantern/systray"
 	pepeunit "github.com/w7a8n1y4a/pepeunit_go_client"
 )
 
-func onReady(icon []byte, client *pepeunit.PepeunitClient) {
+func OnReady(icon []byte, client *pepeunit.PepeunitClient) {
 	systray.SetIcon(icon)
 	systray.SetTitle("Tray Example")
 	systray.SetTooltip("Minimal Tray App")
@@ -13,7 +13,7 @@ func onReady(icon []byte, client *pepeunit.PepeunitClient) {
 	mButton := systray.AddMenuItem("Меню", "Нажмите для выполнения")
 	go func() {
 		for range mButton.ClickedCh {
-			go startGame(client)
+			go StartGame(client)
 		}
 	}()
 
@@ -24,6 +24,6 @@ func onReady(icon []byte, client *pepeunit.PepeunitClient) {
 	}()
 }
 
-func onExit() {
+func OnExit() {
 	// Application exit
 }

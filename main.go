@@ -9,6 +9,8 @@ import (
 	"github.com/getlantern/systray"
 	pepeunit "github.com/w7a8n1y4a/pepeunit_go_client"
 	"golang.design/x/hotkey/mainthread"
+
+	"picker/internal/app"
 )
 
 //go:embed assets/icons/64.png
@@ -39,15 +41,15 @@ func main() {
 	}
 	go pepeClient.RunMainCycle(ctx, nil)
 	mainthread.Init(func() {
-		registerGlobalHotkey(pepeClient)
-		registerOptionHotkeys(pepeClient)
+		app.RegisterGlobalHotkey(pepeClient)
+		app.RegisterOptionHotkeys(pepeClient)
 	})
-	icon, err := loadIcon(iconData)
+	icon, err := app.LoadIcon(iconData)
 	if err != nil {
 		os.Exit(1)
 	}
 
 	systray.Run(func() {
-		onReady(icon, pepeClient)
-	}, onExit)
+		app.OnReady(icon, pepeClient)
+	}, app.OnExit)
 }

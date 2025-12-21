@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"picker/internal/config"
@@ -8,7 +8,7 @@ import (
 	"golang.design/x/hotkey"
 )
 
-func registerGlobalHotkey(client *pepeunit.PepeunitClient) {
+func RegisterGlobalHotkey(client *pepeunit.PepeunitClient) {
 	cfg := config.GetConfig()
 	if cfg.LaunchHotkeyMain == nil {
 		return
@@ -28,7 +28,7 @@ func registerGlobalHotkey(client *pepeunit.PepeunitClient) {
 		for {
 			select {
 			case <-hk.Keydown():
-				go startGame(client)
+				go StartGame(client)
 			case <-hk.Keyup():
 			}
 		}

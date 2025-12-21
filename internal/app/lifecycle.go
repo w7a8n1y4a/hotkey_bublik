@@ -1,11 +1,8 @@
-package main
+package app
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"image"
-	"image/png"
 	"os"
 	"os/exec"
 
@@ -16,20 +13,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	pepeunit "github.com/w7a8n1y4a/pepeunit_go_client"
 )
-
-func loadIcon(data []byte) ([]byte, error) {
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	var icon []byte
-	buf := new(bytes.Buffer)
-	if err := png.Encode(buf, img); err != nil {
-		return nil, err
-	}
-	icon = buf.Bytes()
-	return icon, nil
-}
 
 func prepareGame(client *pepeunit.PepeunitClient) (*game.Game, error) {
 	data, err := game.FetchUnits(client)
@@ -63,14 +46,14 @@ func prepareGame(client *pepeunit.PepeunitClient) (*game.Game, error) {
 
 	gameInstance.OnHotkeysChanged = func() {
 		go func() {
-			registerOptionHotkeys(client)
+			RegisterOptionHotkeys(client)
 		}()
 	}
 
 	return gameInstance, nil
 }
 
-func startGame(client *pepeunit.PepeunitClient) {
+func StartGame(client *pepeunit.PepeunitClient) {
 	gameInstance, err := prepareGame(client)
 	if err != nil {
 		return
