@@ -1,12 +1,12 @@
-# Donut controlling UnitNodes
+# Hotkey Bublik
 
 Parameter | Implementation
 -- | --
-Description | Позволяет подготавливать и отправлять сообщения в `Input` `UnitNodes` других `Unit`
+Description | Управляет командами, отправляемыми в `Input` `UnitNodes` других `Unit`. Позволяет вызывать команду выбором сегмента  и/или назначать для команд горячие клавиши
 Lang | `Golang`
 Hardware | `Any-PC`
-Firmware | `Linux-X11`
-Stack | [ebiten-v2](https://github.com/hajimehoshi/ebiten), [pepeunit_go_client](https://github.com/w7a8n1y4a/pepeunit_go_client), [systray](https://github.com/getlantern/systray), [clipboard](https://github.com/atotto/clipboard), [imaging](https://github.com/disintegration/imaging), [screenshot](https://github.com/kbinani/screenshot)
+Firmware | `Linux`, `X11`, `I3WM`
+Stack | [ebiten-v2](https://github.com/hajimehoshi/ebiten), [pepeunit_go_client](https://github.com/w7a8n1y4a/pepeunit_go_client)
 Version | 1.0.0
 License | AGPL v3 License
 Authors | Ivan Serebrennikov <admin@silberworks.com>
@@ -14,7 +14,7 @@ Authors | Ivan Serebrennikov <admin@silberworks.com>
 ## Env variable assignment
 
 1. `RADIUS_INNER` - Внутренний радиус первого бублика в пикселях
-2. `THICK_SEGMENT` - Ширина бубликов в пикселях
+2. `THICK_SEGMENT` - Толщина сегментов бубликов в пикселях
 3. `HOTKEY_MAIN` - Глобальный хоткей запуска интерфейса (например: `CTRL+SHIFT+P`). Если указать `null` — хоткей не регистрируется.
 
 ## Assignment of Device Topics
@@ -24,16 +24,13 @@ Authors | Ivan Serebrennikov <admin@silberworks.com>
 ## Work algorithm
 
 1. Чтобы приложение увидело `Unit` на первом слое бублика, нужно соеденить `output_units_nodes/pepeunit` с `Input` другого `Unit` в интерфейсах `Pepeunit`
-2. После запуска открыть интерфейс можно нажав кнопку `Меню` в `system tray` или через хоткей в переменной `HOTKEY_MAIN`
+2. После запуска открыть интерфейс можно нажав кнопку `Меню` в `system tray` или через хоткей указанный в переменной `HOTKEY_MAIN`
 3. На первом слое бублика каждый сегмент - это отдельный `Unit`
-4. На втором слое бублика каждый сегмент - это отдельный `Input` уже выбранного `Unit`
-5. На третьем слое бублика каждый сегмент - это сохранённые опции для отправки в выбранный `Input` топик `Unit`
-6. При нажатии на `ЛКМ` отображается следующий слой
-7. При нажатии на `ПКМ` отображается предидущий слой
-8. На третьем слое - при нажатии на `ЛКМ` по `Сreate New Option` будет предложено сначала ввести название опции, после нажатия `Enter` будет предложено ввести данные, которые будут отправлены. Оба поля ввода поддерживают `ctrl-v`
-9. На третьем слое - при нажатии на `ЛКМ` по другим сегментам, будут отправляться `MQTT` сообщения в выбранный `Input` топик `Unit`
-10. На третьем слое - при нажатии горячей клавиши `Delete` опция будет удалена
-11. Опции создаваемые через `Сreate New Option` хранятся на стороне `Pepeunit` через хранилище состояний
+4. На втором слое бублика каждый сегмент - это отдельный `Input` `UnitNode` уже выбранного `Unit`
+5. На третьем слое бублика каждый сегмент - это сохранённые команды для отправки в выбранный `Input` `UnitNode`
+6. Возможные действия с сегментами подписаны под бубликами
+7. Команды создаваемые на третьем слое бублика хранятся хранятся на стороне `Pepeunit` через хранилище состояний в шифрованом виде
+8. В логах на экране отображаются последние `8` записей из `log.json`
 
 ## Installation
 
