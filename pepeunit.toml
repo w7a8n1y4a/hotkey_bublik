@@ -15,7 +15,7 @@ authors = [
 ]
 
 [images]
-example = "https://ibb.co/qMzGtCPz"
+example = "https://minio.pepemoss.com/public-data/gif/hotkey_bublik.gif"
 
 [env_description]
 RADIUS_INNER = "Внутренний радиус первого бублика в пикселях"

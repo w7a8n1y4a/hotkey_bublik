@@ -13,7 +13,7 @@ Authors | Ivan Serebrennikov <admin@silberworks.com>
 
 ## Example
 
-<div align="center"><img align="center" src="https://ibb.co/qMzGtCPz"></div>
+<div align="center"><img align="center" src="https://minio.pepemoss.com/public-data/gif/hotkey_bublik.gif"></div>
 
 ## Env variable assignment
 
