@@ -11,11 +11,15 @@ Version | 1.0.0
 License | AGPL v3 License
 Authors | Ivan Serebrennikov <admin@silberworks.com>
 
+## Example
+
+<div align="center"><img align="center" src="https://ibb.co/qMzGtCPz"></div>
+
 ## Env variable assignment
 
 1. `RADIUS_INNER` - Внутренний радиус первого бублика в пикселях
 2. `THICK_SEGMENT` - Толщина сегментов бубликов в пикселях
-3. `HOTKEY_MAIN` - Глобальный хоткей запуска интерфейса (например: `CTRL+SHIFT+P`). Если указать `null` — хоткей не регистрируется.
+3. `HOTKEY_MAIN` - Глобальный хоткей запуска интерфейса (например: `CTRL+SHIFT+P`). Если указать `null` — хоткей не регистрируется
 
 ## Assignment of Device Topics
 
@@ -29,7 +33,7 @@ Authors | Ivan Serebrennikov <admin@silberworks.com>
 4. На втором слое бублика каждый сегмент - это отдельный `Input` `UnitNode` уже выбранного `Unit`
 5. На третьем слое бублика каждый сегмент - это сохранённые команды для отправки в выбранный `Input` `UnitNode`
 6. Возможные действия с сегментами подписаны под бубликами
-7. Команды создаваемые на третьем слое бублика хранятся хранятся на стороне `Pepeunit` через хранилище состояний в шифрованом виде
+7. Команды создаваемые на третьем слое бублика хранятся на стороне `Pepeunit` через хранилище состояний в шифрованом виде
 8. В логах на экране отображаются последние `8` записей из `log.json`
 
 ## Installation

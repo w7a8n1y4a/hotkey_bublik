@@ -14,6 +14,9 @@ authors = [
     {name = "Ivan Serebrennikov", email = "admin@silberworks.com"}
 ]
 
+[images]
+example = "https://ibb.co/qMzGtCPz"
+
 [env_description]
 RADIUS_INNER = "Внутренний радиус первого бублика в пикселях"
 THICK_SEGMENT = "Толщина сегментов бубликов в пикселях"
