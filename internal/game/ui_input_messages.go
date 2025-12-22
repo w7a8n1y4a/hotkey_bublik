@@ -14,6 +14,7 @@ func (g *Game) drawTextInputMessages(screen *ebiten.Image) {
 
 	fontFace := LoadFont(24)
 	fontBigFace := LoadFont(32)
+	fontSize := 24
 	centerX := cfg.ScreenWidth / 2
 	centerY := cfg.ScreenHeight / 2
 
@@ -56,12 +57,16 @@ func (g *Game) drawTextInputMessages(screen *ebiten.Image) {
 	)
 
 	hintText := "ENTER: сохранить | ESC: отменить"
+	hintY := cfg.ScreenHeight - fontSize*2
+	if hintY < fontSize {
+		hintY = fontSize
+	}
 	DrawCenteredText(
 		screen,
 		fontFace,
 		hintText,
 		centerX,
-		centerY+100,
+		hintY,
 		600,
 		4,
 		color.RGBA{200, 200, 200, 255},
@@ -84,7 +89,8 @@ func (g *Game) getTextInputWithCursor() string {
 func (g *Game) drawHotkeyInputMessages(screen *ebiten.Image) {
 	cfg := config.GetConfig()
 
-	fontFace := LoadFont(24)
+	fontSize := 24
+	fontFace := LoadFont(float64(fontSize))
 	fontBigFace := LoadFont(32)
 	centerX := cfg.ScreenWidth / 2
 	centerY := cfg.ScreenHeight / 2
@@ -137,12 +143,16 @@ func (g *Game) drawHotkeyInputMessages(screen *ebiten.Image) {
 	)
 
 	hintText := "ENTER: сохранить | ESC: отменить | BACKSPACE/DELETE: Сбросить"
+	hintY := cfg.ScreenHeight - fontSize*2
+	if hintY < fontSize {
+		hintY = fontSize
+	}
 	DrawCenteredText(
 		screen,
 		fontFace,
 		hintText,
 		centerX,
-		centerY+100,
+		hintY,
 		800,
 		4,
 		color.RGBA{200, 200, 200, 255},
