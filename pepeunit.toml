@@ -1,16 +1,12 @@
 [general]
-name = "Donut controlling UnitNodes"
-description = "Позволяет подготавливать и отправлять сообщения в `Input` `UnitNodes` других `Unit`"
+name = "Bublik controlling UnitNodes"
+description = "Позволяет подготавливать и отправлять команды в `Input` `UnitNodes` других `Unit`"
 language = "Golang"
 hardware = ["Any-PC"]
-firmware = ["Linux-X11"]
+firmware = ["Linux", "X11", "I3WM"]
 stack = [
     {name = "ebiten-v2", link = "https://github.com/hajimehoshi/ebiten"},
-    {name = "pepeunit_go_client", link = "https://github.com/w7a8n1y4a/pepeunit_go_client"},
-    {name = "systray", link = "https://github.com/getlantern/systray"},
-    {name = "clipboard", link = "https://github.com/atotto/clipboard"},
-    {name = "imaging", link = "https://github.com/disintegration/imaging"},
-    {name = "screenshot", link = "https://github.com/kbinani/screenshot"}
+    {name = "pepeunit_go_client", link = "https://github.com/w7a8n1y4a/pepeunit_go_client"}
 ]
 version = "1.0.0"
 license = "AGPL v3 License"
@@ -20,7 +16,7 @@ authors = [
 
 [env_description]
 RADIUS_INNER = "Внутренний радиус первого бублика в пикселях"
-THICK_SEGMENT = "Ширина бубликов в пикселях"
+THICK_SEGMENT = "Толщина сегмента бубликов в пикселях"
 HOTKEY_MAIN = "Глобальный хоткей запуска интерфейса (например: `CTRL+SHIFT+P`). Если указать `null` — хоткей не регистрируется."
 
 [topic_assignment]
