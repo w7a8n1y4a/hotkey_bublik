@@ -204,6 +204,74 @@ func (g *Game) resetSelection() {
 		g.SelectedSegments[2] = 0
 	}
 	g.ActiveLayer = 0
+	g.clearSelectedNodeCache()
+}
+
+func (g *Game) restoreSelection(prevActive int, prevSel []int) {
+	// default fallback
+	g.resetSelection()
+
+	if len(prevSel) < 3 {
+		return
+	}
+
+	// Layer 0: units + refresh button
+	layer0Len := len(g.Units.Units) + 1
+	if layer0Len <= 0 {
+		return
+	}
+	sel0 := prevSel[0]
+	if sel0 >= layer0Len {
+		sel0 = layer0Len - 1
+	}
+	if sel0 < 0 {
+		sel0 = 0
+	}
+	g.SelectedSegments[0] = sel0
+	maxLayer := 0
+
+	// Layer 1: unit nodes of selected unit
+	if prevActive >= 1 {
+		unitIdx := g.SelectedSegments[0] - 1
+		if unitIdx >= 0 && unitIdx < len(g.Units.Units) {
+			layer1Len := len(g.Units.Units[unitIdx].UnitNodes)
+			if layer1Len > 0 {
+				sel1 := prevSel[1]
+				if sel1 >= layer1Len {
+					sel1 = layer1Len - 1
+				}
+				if sel1 < 0 {
+					sel1 = 0
+				}
+				g.SelectedSegments[1] = sel1
+				maxLayer = 1
+
+				// Layer 2: options for selected node
+				if prevActive >= 2 {
+					selectedUnit := g.Units.Units[unitIdx]
+					if sel1 < len(selectedUnit.UnitNodes) {
+						selectedNode := selectedUnit.UnitNodes[sel1]
+						stateData := g.StateData[selectedNode.UUID]
+						layer2Len := len(stateData) + 1
+						if layer2Len > 0 {
+							sel2 := prevSel[2]
+							if sel2 >= layer2Len {
+								sel2 = layer2Len - 1
+							}
+							if sel2 < 0 {
+								sel2 = 0
+							}
+							g.SelectedSegments[2] = sel2
+							maxLayer = 2
+						}
+					}
+				}
+			}
+		}
+	}
+
+	g.ActiveLayer = maxLayer
+	g.clearSelectedNodeCache()
 }
 
 func (g *Game) readLogEntries() []string {
@@ -294,4 +362,10 @@ func (g *Game) updateSpinner() {
 	if g.spinnerOpsInFlight == 0 && now.Sub(g.spinnerStart) >= g.spinnerMinDuration {
 		g.spinnerActive = false
 	}
+}
+
+func (g *Game) clearSelectedNodeCache() {
+	g.lastNodeInfoJSON = ""
+	g.lastNodeUnitIdx = -1
+	g.lastNodeUnitNodeIdx = -1
 }

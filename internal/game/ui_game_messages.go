@@ -17,6 +17,8 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 		return
 	}
 
+	refreshHint := "F5/CTRL+R: обновить"
+
 	if layerIndex != g.ActiveLayer {
 		return
 	}
@@ -274,12 +276,13 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 			if selectedNodeIdx < len(selectedUnit.UnitNodes) {
 				selectedNode := selectedUnit.UnitNodes[selectedNodeIdx]
 
-				if g.lastNodeUnitIdx != unitIdx || g.lastNodeUnitNodeIdx != selectedNodeIdx || g.lastNodeInfoJSON == "" {
-					nodeJSON, err := json.MarshalIndent(selectedNode, "", "    ")
-					if err != nil {
-						return
-					}
-					g.lastNodeInfoJSON = string(nodeJSON)
+				nodeJSON, err := json.MarshalIndent(selectedNode, "", "    ")
+				if err != nil {
+					return
+				}
+				jsonStr := string(nodeJSON)
+				if g.lastNodeUnitIdx != unitIdx || g.lastNodeUnitNodeIdx != selectedNodeIdx || g.lastNodeInfoJSON != jsonStr {
+					g.lastNodeInfoJSON = jsonStr
 					g.lastNodeUnitIdx = unitIdx
 					g.lastNodeUnitNodeIdx = selectedNodeIdx
 				}
@@ -322,10 +325,10 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 		seg := g.SelectedSegments[0]
 		var hintText string
 		if seg == 0 {
-			hintText = "ЛКМ: обновить список юнитов"
+			hintText = "ЛКМ: обновить список юнитов | " + refreshHint
 		} else if seg > 0 && seg <= len(g.Units.Units) {
 			unit := g.Units.Units[seg-1]
-			hintText = "ЛКМ: выбрать Unit | SPACE: открыть \"" + strings.TrimSpace(unit.Name) + "\" в браузере"
+			hintText = "ЛКМ: выбрать Unit | ПКМ: назад | SPACE: открыть \"" + strings.TrimSpace(unit.Name) + "\" в браузере | " + refreshHint
 		}
 
 		if hintText != "" {
@@ -358,7 +361,7 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 					entityName = selectedNode.UUID
 				}
 
-				hintText := "ЛКМ: выбрать UnitNode | ПКМ: назад | SPACE: открыть \"" + entityName + "\" в браузере"
+				hintText := "ЛКМ: выбрать UnitNode | ПКМ: назад | SPACE: открыть \"" + entityName + "\" в браузере | " + refreshHint
 
 				hintWidth := text.BoundString(fontFace, hintText).Dx()
 				hintX := cfg.ScreenWidth/2 - hintWidth/2
@@ -388,9 +391,9 @@ func (g *Game) drawGameModeMessages(screen *ebiten.Image, layerIndex int, items 
 
 				var hintText string
 				if g.SelectedSegments[2] == 0 {
-					hintText = "ЛКМ: создать новую команду | ПКМ: назад"
+					hintText = "ЛКМ: создать новую команду | ПКМ: назад | " + refreshHint
 				} else if g.SelectedSegments[2] > 0 && g.SelectedSegments[2]-1 < len(stateData) {
-					hintText = "ЛКМ: отправить команду | ПКМ: назад | DELETE: удалить команду | SPACE: установить хоткей | CTRL+SPACE: сбросить хоткей"
+					hintText = "ЛКМ: отправить команду | ПКМ: назад | DELETE: удалить команду | SPACE: установить хоткей | CTRL+SPACE: сбросить хоткей | " + refreshHint
 				}
 
 				if hintText != "" {

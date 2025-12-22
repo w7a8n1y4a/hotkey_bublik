@@ -18,6 +18,16 @@ func (g *Game) Update() error {
 
 	switch g.InputMode {
 	case ModeGame:
+		refreshAction := func() {
+			if g.PepeClient != nil {
+				g.PepeClient.GetLogger().Info("Run update units list")
+			}
+			g.refreshUnits()
+		}
+
+		g.handleKey(ebiten.KeyF5, refreshAction)
+		g.handleKeyCombination(ebiten.KeyR, ebiten.KeyControl, refreshAction)
+
 		if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 			if !g.KeyDownMap[ebiten.KeyEscape] {
 				g.KeyDownMap[ebiten.KeyEscape] = true
@@ -35,8 +45,11 @@ func (g *Game) Update() error {
 					g.PepeClient.GetLogger().Error("Failed to refresh units: " + res.err.Error())
 				}
 			} else {
+				prevActive := g.ActiveLayer
+				prevSel := make([]int, len(g.SelectedSegments))
+				copy(prevSel, g.SelectedSegments)
 				g.Units = res.data
-				g.resetSelection()
+				g.restoreSelection(prevActive, prevSel)
 			}
 			g.finishSpinnerOp()
 		default:
@@ -161,7 +174,7 @@ func (g *Game) Update() error {
 									if err := g.SetOptionHotkey(selectedNode.UUID, optionName, hotkey); err != nil {
 										if g.PepeClient != nil {
 											g.PepeClient.GetLogger().Error("Error setting hotkey for command '" + optionName + "' node '" + selectedNode.UUID + "': " + err.Error())
-									}
+										}
 									} else {
 										if g.PepeClient != nil {
 											g.PepeClient.GetLogger().Info("Set hotkey '" + hotkey + "' for command '" + optionName + "'")
@@ -201,10 +214,7 @@ func (g *Game) Update() error {
 		g.handleKey(ebiten.Key(ebiten.MouseButtonLeft), func() {
 			if g.ActiveLayer == 0 {
 				if g.SelectedSegments[0] == 0 {
-					if g.PepeClient != nil {
-						g.PepeClient.GetLogger().Info("Run update units list")
-					}
-					g.refreshUnits()
+					refreshAction()
 					return
 				}
 

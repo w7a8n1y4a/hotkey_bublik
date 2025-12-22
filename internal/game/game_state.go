@@ -157,17 +157,19 @@ func NewGame(client *pepeunit.PepeunitClient, data UnitsByNodesResponse, stateDa
 	}
 
 	g := &Game{
-		PepeClient:         client,
-		Units:              data,
-		StateData:          stateData,
-		KeyDownMap:         make(map[ebiten.Key]bool),
-		SelectedSegments:   make([]int, 3),
-		ActiveLayer:        0,
-		spinnerImage:       spinnerImg,
-		spinnerMinDuration: 100 * time.Millisecond,
-		refreshResultCh:    make(chan refreshResult, 1),
-		mqttResultCh:       make(chan mqttResult, 1),
-		MQTTStatus:         mqttStatus,
+		PepeClient:          client,
+		Units:               data,
+		StateData:           stateData,
+		KeyDownMap:          make(map[ebiten.Key]bool),
+		SelectedSegments:    make([]int, 3),
+		ActiveLayer:         0,
+		spinnerImage:        spinnerImg,
+		spinnerMinDuration:  100 * time.Millisecond,
+		refreshResultCh:     make(chan refreshResult, 1),
+		mqttResultCh:        make(chan mqttResult, 1),
+		MQTTStatus:          mqttStatus,
+		lastNodeUnitIdx:     -1,
+		lastNodeUnitNodeIdx: -1,
 	}
 
 	return g, nil
