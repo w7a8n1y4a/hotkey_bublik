@@ -94,14 +94,15 @@ func main() {
 	flag.Parse()
 
 	pepeClient, err := pepeunit.NewPepeunitClient(pepeunit.PepeunitClientConfig{
-		EnvFilePath:      "env.json",
-		SchemaFilePath:   "schema.json",
-		LogFilePath:      "log.json",
-		EnableMQTT:       true,
-		EnableREST:       true,
-		CycleSpeed:       100 * time.Millisecond,
-		RestartMode:      pepeunit.RestartModeRestartExec,
-		SkipVersionCheck: true,
+		EnvFilePath:          "env.json",
+		SchemaFilePath:       "schema.json",
+		LogFilePath:          "log.json",
+		EnableMQTT:           true,
+		EnableREST:           true,
+		CycleSpeed:           100 * time.Millisecond,
+		RestartMode:          pepeunit.RestartModeRestartExec,
+		FFVersionCheckEnable: true,
+		FFConsoleLogEnable:   true,
 	})
 	if err != nil {
 		os.Exit(1)

@@ -110,6 +110,8 @@ github.com/tklauser/numcpus v0.6.1 h1:ng9scYS7az0Bk4OZLvrNXNSAO2Pxr1XXRAPyjhIx+F
 github.com/tklauser/numcpus v0.6.1/go.mod h1:1XfjsgE2zo8GVw7POkMbHENHzVg3GzmoZ9fESEdAacY=
 github.com/w7a8n1y4a/pepeunit_go_client v1.0.0 h1:IcboXGwvZ+QWguPRo2qYMDrbo2rKYFpKYedBncyDMq0=
 github.com/w7a8n1y4a/pepeunit_go_client v1.0.0/go.mod h1:YgQBWMGZEJIPMTk+GVhvnlMdqha5mUHdFTh6MuQhtA8=
+github.com/w7a8n1y4a/pepeunit_go_client v1.1.0 h1:r8KS7lALJ3KGyx5lN0ToGb8faXdlZ3XxmRLRJA4yakg=
+github.com/w7a8n1y4a/pepeunit_go_client v1.1.0/go.mod h1:YgQBWMGZEJIPMTk+GVhvnlMdqha5mUHdFTh6MuQhtA8=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 github.com/yusufpapurcu/wmi v1.2.3 h1:E1ctvB7uKFMOJw3fdOW32DwGE9I7t++CRUEMKvFoFiw=
 github.com/yusufpapurcu/wmi v1.2.3/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
