@@ -7,7 +7,7 @@ Lang | `Golang`
 Hardware | `Any-PC`
 Firmware | `Linux`, `X11`, `I3WM`
 Stack | [ebiten-v2](https://github.com/hajimehoshi/ebiten), [pepeunit_go_client](https://github.com/w7a8n1y4a/pepeunit_go_client)
-Version | 1.0.1
+Version | 1.1.1
 License | AGPL v3 License
 Authors | Ivan Serebrennikov <admin@silberworks.com>
 
