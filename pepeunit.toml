@@ -14,8 +14,8 @@ authors = [
     {name = "Ivan Serebrennikov", email = "admin@silberworks.com"}
 ]
 
-[images]
-example = "https://minio.pepemoss.com/public-data/video/hotkey_bublik.mp4"
+[video]
+video = {preview = "https://minio.pepemoss.com/public-data/video/hotkey_bublik_prev.jpg", link = "https://youtu.be/kAPHAMLkP_A"}
 
 [env_description]
 RADIUS_INNER = "Внутренний радиус первого бублика в пикселях"

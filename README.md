@@ -11,19 +11,23 @@ Version | 1.1.1
 License | AGPL v3 License
 Authors | Ivan Serebrennikov <admin@silberworks.com>
 
-## Example
+## Video
 
-<div align="center"><img align="center" src="https://minio.pepemoss.com/public-data/video/hotkey_bublik.mp4"></div>
+[![video](https://minio.pepemoss.com/public-data/video/hotkey_bublik_prev.jpg)](https://youtu.be/kAPHAMLkP_A)
 
 ## Env variable assignment
 
-1. `RADIUS_INNER` - Внутренний радиус первого бублика в пикселях
-2. `THICK_SEGMENT` - Толщина сегментов бубликов в пикселях
-3. `HOTKEY_MAIN` - Глобальный хоткей запуска интерфейса (например: `CTRL+SHIFT+P`). Если указать `null` — хоткей не регистрируется
+Variable | Description
+-- | --
+`RADIUS_INNER` | Внутренний радиус первого бублика в пикселях
+`THICK_SEGMENT` | Толщина сегментов бубликов в пикселях
+`HOTKEY_MAIN` | Глобальный хоткей запуска интерфейса (например: `CTRL+SHIFT+P`). Если указать `null` — хоткей не регистрируется
 
 ## Assignment of Device Topics
 
-- `output_units_nodes/pepeunit` - Предназначен для управления `Input` `UnitNode` других `Unit`, для корректной работы нужно добавить его через `Related Output`. Данные не публикуются в данный топик, а только в связи этого топика
+Topic | Description
+-- | --
+`output_units_nodes/pepeunit` | Предназначен для управления `Input` `UnitNode` других `Unit`, для корректной работы нужно добавить его через `Related Output`. Данные не публикуются в данный топик, а только в связи этого топика
 
 ## Work algorithm
 
